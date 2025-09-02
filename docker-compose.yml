@@ -1,0 +1,33 @@
+services:
+  odoo:
+    container_name: odoo-racoondevs-odoo
+    image: odoo:18.0
+    depends_on:
+      - db
+    ports:
+      - "127.0.0.1:18069:8069"
+      - "127.0.0.1:18072:8072"
+    volumes:
+      - odoo-data:/var/lib/odoo
+      - ./config:/etc/odoo
+      - ./custom-addons:/mnt/extra-addons
+    environment:
+      ADDONS_PATH: /mnt/extra-addons
+    command: ["odoo", "-c", "/etc/odoo/odoo.conf"]
+    restart: unless-stopped
+
+  db:
+    container_name: odoo-racoondevs-db
+    image: postgres:15
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: odoo_db
+      POSTGRES_PASSWORD: odoo_db
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  odoo-data:
+  db-data:
