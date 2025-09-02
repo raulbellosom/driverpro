@@ -14,6 +14,7 @@ services:
     environment:
       ADDONS_PATH: /mnt/extra-addons
       ENVIRONMENT: ${ENVIRONMENT:-development}
+      ODOO_RC: /etc/odoo/${ODOO_CONFIG_FILE:-odoo.dev.conf}
     command: ["odoo", "-c", "/etc/odoo/${ODOO_CONFIG_FILE:-odoo.dev.conf}"]
     restart: unless-stopped
 
