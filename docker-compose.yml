@@ -13,7 +13,8 @@ services:
       - ./custom-addons:/mnt/extra-addons
     environment:
       ADDONS_PATH: /mnt/extra-addons
-    command: ["odoo", "-c", "/etc/odoo/odoo.conf"]
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+    command: ["odoo", "-c", "/etc/odoo/${ODOO_CONFIG_FILE:-odoo.dev.conf}"]
     restart: unless-stopped
 
   db:
