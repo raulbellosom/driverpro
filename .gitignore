@@ -1,0 +1,47 @@
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Python / Odoo
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.db
+*.egg-info/
+odoo-source/      # código fuente de Odoo, no versionarlo
+.odoo/            # configs temporales
+*.log
+
+# Docker
+*.pid
+*.seed
+.env
+.env.local
+.env.*.local
+
+# Frontend build
+front/dist/
+front/.vite/
+front/.cache/
+*.local
+
+# Back build
+back/dist/
+back/.cache/
+
+# Config / secrets
+config/           # solo si no quieres versionar odoo.conf (puedes decidir)
+nginx/            # en tu caso no la usas
+secrets/
+*.crt
+*.key
+
+# IDE/editor
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+odoo-source/
