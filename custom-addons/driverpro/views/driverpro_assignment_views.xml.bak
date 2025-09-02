@@ -1,0 +1,221 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+
+        <!-- Vista Lista de Asignaciones -->
+        <record id="view_driverpro_assignment_tree" model="ir.ui.view">
+            <field name="name">driverpro.assignment.tree</field>
+            <field name="model">driverpro.assignment</field>
+            <field name="arch" type="xml">
+                <list string="Asignaciones Vehículo-Chofer" decoration-info="state == 'draft'" decoration-success="state == 'active'" decoration-muted="state in ['expired', 'cancelled']">
+                    <field name="name"/>
+                    <field name="driver_id"/>
+                    <field name="vehicle_id"/>
+                    <field name="card_id"/>
+                    <field name="date_start"/>
+                    <field name="date_end"/>
+                    <field name="state"/>
+                    <field name="trip_count"/>
+                    <field name="company_id" groups="base.group_multi_company"/>
+                </list>
+            </field>
+        </record>
+
+        <!-- Vista Formulario de Asignaciones -->
+        <record id="view_driverpro_assignment_form" model="ir.ui.view">
+            <field name="name">driverpro.assignment.form</field>
+            <field name="model">driverpro.assignment</field>
+            <field name="arch" type="xml">
+                <form string="Asignación Vehículo-Chofer">
+                    <header>
+                        <button name="action_activate" type="object" string="Activar" class="oe_highlight" invisible="state != 'draft'"/>
+                        <button name="action_cancel" type="object" string="Cancelar" invisible="state not in ['draft', 'active']"/>
+                        <field name="state" widget="statusbar" statusbar_visible="draft,active,expired"/>
+                    </header>
+                    <sheet>
+                        <div class="oe_button_box" name="button_box">
+                            <button name="action_view_trips" type="object" class="oe_stat_button" icon="fa-road" invisible="trip_count == 0">
+                                <field name="trip_count" widget="statinfo" string="Viajes"/>
+                            </button>
+                        </div>
+
+                        <widget name="web_ribbon" title="Activa" bg_color="bg-success" invisible="is_active == False"/>
+                        <widget name="web_ribbon" title="Expirada" bg_color="bg-warning" invisible="state != 'expired'"/>
+                        <widget name="web_ribbon" title="Cancelada" bg_color="bg-danger" invisible="state != 'cancelled'"/>
+
+                        <div class="oe_title">
+                            <h1>
+                                <field name="name" readonly="1"/>
+                            </h1>
+                        </div>
+
+                        <group>
+                            <group name="assignment_info">
+                                <field name="driver_id" options="{'no_create': True}" readonly="state in ['active', 'expired', 'cancelled']"/>
+                                <field name="vehicle_id" options="{'no_create': True}" readonly="state in ['active', 'expired', 'cancelled']"/>
+                                <field name="card_id" options="{'no_create': True}" readonly="state in ['expired', 'cancelled']"/>
+                                <field name="company_id" groups="base.group_multi_company"/>
+                                <field name="is_active" invisible="1"/>
+                            </group>
+                            <group name="validity_info">
+                                <field name="date_start" readonly="state in ['active', 'expired', 'cancelled']"/>
+                                <field name="date_end" readonly="state == 'cancelled'"/>
+                            </group>
+                        </group>
+
+                        <notebook>
+                            <page string="Viajes" name="trips" invisible="trip_count == 0">
+                                <div class="oe_title">
+                                    <h3>Viajes asociados a esta asignación</h3>
+                                    <p>Los viajes se muestran basados en la combinación conductor-vehículo durante el período de la asignación.</p>
+                                    <button string="Ver Viajes" type="object" name="action_view_trips" class="btn-primary"/>
+                                </div>
+                            </page>
+                            <page string="Notas" name="notes">
+                                <field name="notes" placeholder="Notas adicionales sobre la asignación..."/>
+                            </page>
+                        </notebook>
+                    </sheet>
+                    <chatter>
+                        <field name="message_follower_ids" widget="mail_followers"/>
+                        <field name="activity_ids" widget="mail_activity"/>
+                        <field name="message_ids" widget="mail_thread" options="{'post_refresh': 'recipients'}"/>
+                    </chatter>
+                </form>
+            </field>
+        </record>
+
+        <!-- Vista Kanban de Asignaciones -->
+        <record id="view_driverpro_assignment_kanban" model="ir.ui.view">
+            <field name="name">driverpro.assignment.kanban</field>
+            <field name="model">driverpro.assignment</field>
+            <field name="arch" type="xml">
+                <kanban default_group_by="state" class="o_kanban_small_column">
+                    <field name="name"/>
+                    <field name="driver_id"/>
+                    <field name="vehicle_id"/>
+                    <field name="card_id"/>
+                    <field name="state"/>
+                    <field name="date_start"/>
+                    <field name="date_end"/>
+                    <field name="is_active"/>
+                    <field name="trip_count"/>
+                    <templates>
+                        <t t-name="card">
+                            <div t-attf-class="oe_kanban_card oe_kanban_global_click 
+                                #{record.is_active.raw_value ? 'oe_kanban_card_fancy' : ''}">
+                                <div class="o_kanban_record_top">
+                                    <div class="o_kanban_record_headings">
+                                        <strong class="o_kanban_record_title">
+                                            <field name="driver_id"/>
+                                        </strong>
+                                        <br/>
+                                        <span class="o_kanban_record_subtitle">
+                                            <field name="vehicle_id"/>
+                                        </span>
+                                    </div>
+                                    <div t-if="record.is_active.raw_value" class="o_kanban_record_top_right">
+                                        <span class="badge badge-success">Activa</span>
+                                    </div>
+                                </div>
+                                <div class="o_kanban_record_body">
+                                    <div class="row" t-if="record.card_id.raw_value">
+                                        <div class="col-12">
+                                            <i class="fa fa-credit-card"/>
+                                            <field name="card_id"/>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-6">
+                                            <strong>Inicio:</strong>
+                                            <br/>
+                                            <field name="date_start" widget="date"/>
+                                        </div>
+                                        <div class="col-6" t-if="record.date_end.raw_value">
+                                            <strong>Fin:</strong>
+                                            <br/>
+                                            <field name="date_end" widget="date"/>
+                                        </div>
+                                    </div>
+                                    <div class="row" t-if="record.trip_count.raw_value">
+                                        <div class="col-12">
+                                            <i class="fa fa-road"/>
+                                            <field name="trip_count"/>
+ viajes
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="o_kanban_record_bottom">
+                                    <div class="oe_kanban_bottom_left">
+                                        <field name="activity_ids" widget="kanban_activity"/>
+                                    </div>
+                                </div>
+                            </div>
+                        </t>
+                    </templates>
+                </kanban>
+            </field>
+        </record>
+
+        <!-- Vista de Búsqueda para Asignaciones -->
+        <record id="view_driverpro_assignment_search" model="ir.ui.view">
+            <field name="name">driverpro.assignment.search</field>
+            <field name="model">driverpro.assignment</field>
+            <field name="arch" type="xml">
+                <search string="Buscar Asignaciones">
+                    <field name="driver_id" string="Chofer"/>
+                    <field name="vehicle_id" string="Vehículo"/>
+                    <field name="card_id" string="Tarjeta"/>
+                    <filter string="Activas" name="active" domain="[('is_active', '=', True)]"/>
+                    <filter string="Borradores" name="draft" domain="[('state', '=', 'draft')]"/>
+                    <filter string="Expiradas" name="expired" domain="[('state', '=', 'expired')]"/>
+                    <filter string="Canceladas" name="cancelled" domain="[('state', '=', 'cancelled')]"/>
+                    <separator/>
+                    <filter string="Con Viajes" name="with_trips" domain="[('trip_count', '&gt;', 0)]"/>
+                    <filter string="Sin Viajes" name="no_trips" domain="[('trip_count', '=', 0)]"/>
+                    <separator/>
+                    <group expand="0" string="Agrupar por">
+                        <filter string="Estado" name="group_state" domain="[]" context="{'group_by': 'state'}"/>
+                        <filter string="Chofer" name="group_driver" domain="[]" context="{'group_by': 'driver_id'}"/>
+                        <filter string="Vehículo" name="group_vehicle" domain="[]" context="{'group_by': 'vehicle_id'}"/>
+                        <filter string="Mes de Inicio" name="group_month" domain="[]" context="{'group_by': 'date_start:month'}"/>
+                        <filter string="Compañía" name="group_company" domain="[]" context="{'group_by': 'company_id'}" groups="base.group_multi_company"/>
+                    </group>
+                </search>
+            </field>
+        </record>
+
+        <!-- Vista Calendario de Asignaciones - Temporalmente deshabilitada -->
+        <!--
+        <record id="view_driverpro_assignment_calendar" model="ir.ui.view">
+            <field name="name">driverpro.assignment.calendar</field>
+            <field name="model">driverpro.assignment</field>
+            <field name="arch" type="xml">
+                <calendar string="Calendario de Asignaciones" date_start="date_start" date_stop="date_end" color="driver_id" mode="month" quick_add="False">
+                    <field name="driver_id"/>
+                    <field name="vehicle_id"/>
+                    <field name="state"/>
+                </calendar>
+            </field>
+        </record>
+        -->
+
+        <!-- Acción para Asignaciones -->
+        <record id="action_driverpro_assignment" model="ir.actions.act_window">
+            <field name="name">Asignaciones Vehículo-Chofer</field>
+            <field name="res_model">driverpro.assignment</field>
+            <field name="view_mode">kanban,list,form</field>
+            <field name="context">{'search_default_active': 1}</field>
+            <field name="help" type="html">
+                <p class="o_view_nocontent_smiling_face">
+                    ¡Crea la primera asignación!
+                </p>
+                <p>
+                    Las asignaciones definen qué chofer puede usar qué vehículo
+                    y tarjeta durante un período específico.
+                </p>
+            </field>
+        </record>
+
+    </data>
+</odoo>

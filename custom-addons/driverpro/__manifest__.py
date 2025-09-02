@@ -1,6 +1,6 @@
 {
     'name': 'DriverPro',
-    'version': '18.0.1.0.0',
+    'version': '18.0.2.0.0',
     'summary': 'Gestión avanzada de flotillas de transporte',
     'description': """
         DriverPro - Módulo de gestión de flotillas
@@ -11,9 +11,15 @@
         * Control de tarjetas de recarga de viajes ligadas a vehículos
         * Gestión de recargas con historial y archivos adjuntos
         * Registro y control de viajes con estados avanzados
-        * Asignación dinámica de vehículos a choferes
+        * Integración completa con Fleet para asignación automática de vehículos
         * API JSON para cliente externo de choferes
         * Reportes y estadísticas completas de viajes
+        
+        Version 2.0.0 - Refactorización Mayor:
+        * Eliminado modelo de asignaciones redundante
+        * Integración directa con módulo Fleet de Odoo
+        * Asignación automática: chofer → vehículo → tarjeta
+        * Interfaz simplificada con validaciones mejoradas
     """,
     'author': 'RacoonDevs',
     'website': 'https://racoondevs.com',
@@ -25,19 +31,19 @@
         'portal',
     ],
     'data': [
-        # Security
-        'security/ir.model.access.csv',
+        # Security - Los grupos primero, luego los accesos
         'security/driverpro_security.xml',
+        'security/ir.model.access.csv',
         
         # Data
         'data/driverpro_sequence.xml',
         'data/driverpro_data.xml',
         
-        # Views
-        'views/driverpro_menu.xml',
+        # Views - Las acciones primero, luego los menús
         'views/driverpro_card_views.xml',
         'views/driverpro_trip_views.xml',
-        'views/driverpro_assignment_views.xml',
+        # 'views/driverpro_assignment_views.xml',  # Deshabilitado - se usa Fleet directamente
+        'views/driverpro_menu.xml',
     ],
     'demo': [],
     'qweb': [],
@@ -45,4 +51,5 @@
     'auto_install': False,
     'application': True,
     'sequence': 10,
+    'icon': '/driverpro/static/description/icon_2.png',
 }

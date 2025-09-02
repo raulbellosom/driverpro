@@ -1,0 +1,321 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+
+        <!-- Vista Lista de Tarjetas -->
+        <record id="view_driverpro_card_tree" model="ir.ui.view">
+            <field name="name">driverpro.card.tree</field>
+            <field name="model">driverpro.card</field>
+            <field name="arch" type="xml">
+                <list string="Tarjetas DriverPro" decoration-muted="not active">
+                    <field name="name"/>
+                    <field name="vehicle_id"/>
+                    <field name="balance" sum="Total Saldo"/>
+                    <field name="total_recharges" sum="Total Recargas"/>
+                    <field name="total_consumption" sum="Total Consumido"/>
+                    <field name="recharge_count"/>
+                    <field name="trip_count"/>
+                    <field name="active"/>
+                    <field name="company_id" groups="base.group_multi_company"/>
+                </list>
+            </field>
+        </record>
+
+        <!-- Vista Formulario de Tarjetas -->
+        <record id="view_driverpro_card_form" model="ir.ui.view">
+            <field name="name">driverpro.card.form</field>
+            <field name="model">driverpro.card</field>
+            <field name="arch" type="xml">
+                <form string="Tarjeta DriverPro">
+                    <header>
+                        <button name="action_view_recharges" type="object" string="Ver Recargas" class="oe_highlight" groups="driverpro.group_driverpro_user,driverpro.group_driverpro_manager"/>
+                    </header>
+                    <sheet>
+                        <div class="oe_button_box" name="button_box">
+                            <button name="action_view_recharges" type="object" class="oe_stat_button" icon="fa-credit-card">
+                                <field name="recharge_count" widget="statinfo" string="Recargas"/>
+                            </button>
+                            <button name="action_view_trips" type="object" class="oe_stat_button" icon="fa-road">
+                                <field name="trip_count" widget="statinfo" string="Viajes"/>
+                            </button>
+                        </div>
+
+                        <widget name="web_ribbon" title="Inactiva" bg_color="bg-danger" invisible="active == True"/>
+
+                        <div class="oe_title">
+                            <h1>
+                                <field name="name" placeholder="Número de Tarjeta"/>
+                            </h1>
+                        </div>
+
+                        <group>
+                            <group name="basic_info" string="Información Básica" col="2">
+                                <field name="active"/>
+                                <field name="vehicle_id" options="{'no_create': True}"/>
+                                <field name="company_id" groups="base.group_multi_company"/>
+                            </group>
+                            <group name="balance_info" string="Información Financiera" col="2">
+                                <field name="balance" widget="monetary"/>
+                                <field name="total_recharges" widget="monetary"/>
+                                <field name="total_consumption" widget="monetary"/>
+                            </group>
+                        </group>
+
+                        <notebook>
+                            <page string="Recargas" name="recharges">
+                                <field name="recharge_ids" readonly="1">
+                                    <list string="Recargas">
+                                        <field name="name"/>
+                                        <field name="recharge_date"/>
+                                        <field name="amount"/>
+                                        <field name="state"/>
+                                    </list>
+                                </field>
+                            </page>
+                            <page string="Movimientos" name="movements">
+                                <field name="movement_ids" readonly="1">
+                                    <list string="Movimientos">
+                                        <field name="movement_date"/>
+                                        <field name="movement_type"/>
+                                        <field name="amount"/>
+                                        <field name="reference"/>
+                                    </list>
+                                </field>
+                            </page>
+                            <page string="Historial de Asignaciones" name="assignments">
+                                <field name="assignment_ids" readonly="1">
+                                    <list string="Asignaciones">
+                                        <field name="vehicle_id"/>
+                                        <field name="date_start"/>
+                                        <field name="date_end"/>
+                                        <field name="active"/>
+                                    </list>
+                                </field>
+                            </page>
+                            <page string="Notas" name="notes">
+                                <field name="notes" placeholder="Notas adicionales sobre la tarjeta..."/>
+                            </page>
+                        </notebook>
+                    </sheet>
+                    <chatter>
+                        <field name="message_follower_ids" widget="mail_followers"/>
+                        <field name="activity_ids" widget="mail_activity"/>
+                        <field name="message_ids" widget="mail_thread" options="{'post_refresh': 'recipients'}"/>
+                    </chatter>
+                </form>
+            </field>
+        </record>
+
+        <!-- Vista Kanban de Tarjetas -->
+        <record id="view_driverpro_card_kanban" model="ir.ui.view">
+            <field name="name">driverpro.card.kanban</field>
+            <field name="model">driverpro.card</field>
+            <field name="arch" type="xml">
+                <kanban string="Tarjetas DriverPro">
+                    <field name="name"/>
+                    <field name="vehicle_id"/>
+                    <field name="balance"/>
+                    <field name="active"/>
+                    <field name="total_recharges"/>
+                    <field name="total_consumption"/>
+                    <templates>
+                        <t t-name="card">
+                            <div class="o_kanban_record o_kanban_card shadow-sm rounded-lg p-3 bg-light oe_kanban_global_click">
+
+                                <!-- Header -->
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <div>
+                                        <strong class="h5 text-primary">
+                                            <i class="fa fa-credit-card me-1"/>
+                                            <field name="name"/>
+                                        </strong>
+                                        <div class="small text-muted">
+                                            <i class="fa fa-car me-1"/>
+                                            <field name="vehicle_id"/>
+                                        </div>
+                                    </div>
+                                    <span t-att-class="'badge rounded-pill px-3 ' + (record.active.raw_value ? 'bg-success' : 'bg-danger')">
+                                        <t t-esc="record.active.raw_value and 'Activa' or 'Inactiva'"/>
+                                    </span>
+                                </div>
+
+                                <!-- Body -->
+                                <div class="card-body text-center">
+                                    <div class="mb-2">
+                                        <span class="fw-bold fs-5 text-dark">
+                                            <field name="balance" widget="monetary"/>
+                                        </span>
+                                        <div class="small text-muted">Saldo actual</div>
+                                    </div>
+                                    <div class="d-flex justify-content-between">
+                                        <div class="text-success">
+                                            <small>Recargas</small>
+                                            <br/>
+                                            <strong>
+                                                <field name="total_recharges" widget="monetary"/>
+                                            </strong>
+                                        </div>
+                                        <div class="text-danger">
+                                            <small>Consumido</small>
+                                            <br/>
+                                            <strong>
+                                                <field name="total_consumption" widget="monetary"/>
+                                            </strong>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Footer -->
+                                <div class="d-flex justify-content-between align-items-center mt-2">
+                                    <field name="activity_ids" widget="kanban_activity"/>
+                                    <div>
+                                        <button type="object" name="action_view_recharges" class="btn btn-sm btn-outline-primary">Recargas</button>
+                                        <button type="object" name="action_view_trips" class="btn btn-sm btn-outline-secondary">Viajes</button>
+                                    </div>
+                                </div>
+
+                            </div>
+                        </t>
+
+                    </templates>
+
+                </kanban>
+            </field>
+        </record>
+
+        <!-- Vista de Búsqueda para Tarjetas -->
+        <record id="view_driverpro_card_search" model="ir.ui.view">
+            <field name="name">driverpro.card.search</field>
+            <field name="model">driverpro.card</field>
+            <field name="arch" type="xml">
+                <search string="Buscar Tarjetas">
+                    <field name="name" string="Número de Tarjeta"/>
+                    <field name="vehicle_id" string="Vehículo"/>
+                    <filter string="Activas" name="active" domain="[('active', '=', True)]"/>
+                    <filter string="Inactivas" name="inactive" domain="[('active', '=', False)]"/>
+                    <filter string="Con Saldo" name="with_balance" domain="[('balance', '&gt;', 0)]"/>
+                    <filter string="Sin Saldo" name="no_balance" domain="[('balance', '=', 0)]"/>
+                    <separator/>
+                    <group expand="0" string="Agrupar por">
+                        <filter string="Vehículo" name="group_vehicle" domain="[]" context="{'group_by': 'vehicle_id'}"/>
+                        <filter string="Estado" name="group_active" domain="[]" context="{'group_by': 'active'}"/>
+                        <filter string="Compañía" name="group_company" domain="[]" context="{'group_by': 'company_id'}" groups="base.group_multi_company"/>
+                    </group>
+                </search>
+            </field>
+        </record>
+
+        <!-- Acción para Tarjetas -->
+        <record id="action_driverpro_card" model="ir.actions.act_window">
+            <field name="name">Tarjetas DriverPro</field>
+            <field name="res_model">driverpro.card</field>
+            <field name="view_mode">kanban,list,form</field>
+            <field name="context">{'search_default_active': 1}</field>
+            <field name="help" type="html">
+                <p class="o_view_nocontent_smiling_face">
+                    ¡Crea tu primera tarjeta DriverPro!
+                </p>
+                <p>
+                    Las tarjetas están ligadas a vehículos y contienen créditos 
+                    que se consumen automáticamente al iniciar viajes.
+                </p>
+            </field>
+        </record>
+
+        <!-- Vista Lista de Recargas -->
+        <record id="view_driverpro_card_recharge_tree" model="ir.ui.view">
+            <field name="name">driverpro.card.recharge.tree</field>
+            <field name="model">driverpro.card.recharge</field>
+            <field name="arch" type="xml">
+                <list string="Recargas de Tarjeta" decoration-info="state == 'draft'" decoration-success="state == 'confirmed'" decoration-muted="state == 'cancelled'">
+                    <field name="name"/>
+                    <field name="card_id"/>
+                    <field name="recharge_date"/>
+                    <field name="amount" sum="Total (incluye borradores y canceladas)"/>
+                    <field name="state"/>
+                    <field name="invoice_number"/>
+                    <field name="company_id" groups="base.group_multi_company"/>
+                </list>
+            </field>
+        </record>
+
+        <!-- Vista Formulario de Recargas -->
+        <record id="view_driverpro_card_recharge_form" model="ir.ui.view">
+            <field name="name">driverpro.card.recharge.form</field>
+            <field name="model">driverpro.card.recharge</field>
+            <field name="arch" type="xml">
+                <form string="Recarga de Tarjeta">
+                    <header>
+                        <button name="action_confirm" type="object" string="Confirmar" class="oe_highlight" invisible="state != 'draft'"/>
+                        <button name="action_cancel" type="object" string="Cancelar" invisible="state != 'draft'"/>
+                        <field name="state" widget="statusbar" statusbar_visible="draft,confirmed,cancelled"/>
+                    </header>
+                    <sheet>
+                        <div class="oe_title">
+                            <h1>
+                                <field name="name" placeholder="Referencia de la recarga" readonly="1"/>
+                            </h1>
+                        </div>
+
+                        <!-- Campo invisible para control de edición -->
+                        <field name="is_readonly" invisible="1"/>
+
+                        <group>
+                            <group name="basic_info" string="Información de Recarga">
+                                <field name="card_id" options="{'no_create': True}" readonly="is_readonly"/>
+                                <field name="amount" widget="integer" readonly="is_readonly"/>
+                                <field name="recharge_date" readonly="is_readonly"/>
+                                <field name="company_id" groups="base.group_multi_company" readonly="is_readonly"/>
+                            </group>
+                            <group name="invoice_info" string="Información de Facturación">
+                                <field name="invoice_number" readonly="is_readonly"/>
+                                <field name="invoice_date" readonly="is_readonly"/>
+                            </group>
+                        </group>
+
+                        <notebook>
+                            <page string="Notas" name="notes">
+                                <field name="notes" placeholder="Notas adicionales sobre la recarga..."/>
+                            </page>
+                            <page string="Documentos" name="attachments">
+                                <group string="Documentos Principales">
+                                    <field name="invoice_pdf" filename="invoice_pdf_filename" widget="binary" options="{'accept':'.pdf'}" help="Archivo PDF de la factura oficial" readonly="is_readonly"/>
+                                    <field name="invoice_pdf_filename" invisible="1"/>
+
+                                    <field name="invoice_xml" filename="invoice_xml_filename" widget="binary" options="{'accept':'.xml'}" help="Archivo XML del comprobante fiscal" readonly="is_readonly"/>
+                                    <field name="invoice_xml_filename" invisible="1"/>
+
+                                    <field name="payment_receipt" filename="payment_receipt_filename" widget="binary" options="{'accept':'.png,.jpg,.jpeg,.pdf'}" help="Imagen o PDF del comprobante de pago" readonly="is_readonly"/>
+                                    <field name="payment_receipt_filename" invisible="1"/>
+                                </group>
+                            </page>
+                        </notebook>
+                    </sheet>
+                    <!-- Chatter oculto para satisfacer requerimientos técnicos -->
+                    <chatter>
+                        <field name="message_follower_ids" widget="mail_followers"/>
+                        <field name="activity_ids" widget="mail_activity"/>
+                        <field name="message_ids" widget="mail_thread"/>
+                    </chatter>
+                </form>
+            </field>
+        </record>
+
+        <!-- Acción para Recargas -->
+        <record id="action_driverpro_card_recharge" model="ir.actions.act_window">
+            <field name="name">Recargas de Tarjetas</field>
+            <field name="res_model">driverpro.card.recharge</field>
+            <field name="view_mode">list,form</field>
+            <field name="help" type="html">
+                <p class="o_view_nocontent_smiling_face">
+                    ¡Registra la primera recarga!
+                </p>
+                <p>
+                    Aquí puedes registrar las recargas de créditos para las tarjetas,
+                    incluyendo información de facturación y archivos adjuntos.
+                </p>
+            </field>
+        </record>
+
+    </data>
+</odoo>

@@ -1,0 +1,320 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+
+        <!-- Vista Lista de Viajes -->
+        <record id="view_driverpro_trip_tree" model="ir.ui.view">
+            <field name="name">driverpro.trip.tree</field>
+            <field name="model">driverpro.trip</field>
+            <field name="arch" type="xml">
+                <list string="Viajes DriverPro" decoration-info="state == 'draft'" decoration-warning="state == 'paused'" decoration-success="state == 'active'" decoration-muted="state == 'cancelled'">
+                    <field name="name"/>
+                    <field name="driver_id"/>
+                    <field name="vehicle_id"/>
+                    <field name="origin"/>
+                    <field name="destination"/>
+                    <field name="start_datetime"/>
+                    <field name="duration" widget="float_time"/>
+                    <field name="amount" sum="Total"/>
+                    <field name="state"/>
+                    <field name="company_id" groups="base.group_multi_company"/>
+                </list>
+            </field>
+        </record>
+
+        <!-- Vista Formulario de Viajes -->
+        <record id="view_driverpro_trip_form" model="ir.ui.view">
+            <field name="name">driverpro.trip.form</field>
+            <field name="model">driverpro.trip</field>
+            <field name="arch" type="xml">
+                <form string="Viaje DriverPro">
+                    <header>
+                        <button name="action_start" type="object" string="Iniciar Viaje" class="oe_highlight" invisible="state != 'draft'"/>
+                        <button name="action_pause" type="object" string="Pausar" invisible="state != 'active'"/>
+                        <button name="action_resume" type="object" string="Reanudar" class="oe_highlight" invisible="state != 'paused'"/>
+                        <button name="action_done" type="object" string="Finalizar" class="oe_highlight" invisible="state not in ['active', 'paused']"/>
+                        <button name="action_cancel" type="object" string="Cancelar" invisible="state not in ['draft', 'active', 'paused']"/>
+                        <field name="state" widget="statusbar" statusbar_visible="draft,active,paused,done"/>
+                    </header>
+                    <sheet>
+                        <div class="oe_button_box" name="button_box">
+                            <button name="action_view_pauses" type="object" class="oe_stat_button" icon="fa-pause" invisible="pause_count == 0">
+                                <field name="pause_count" widget="statinfo" string="Pausas"/>
+                            </button>
+                        </div>
+
+                        <widget name="web_ribbon" title="Pausado" bg_color="bg-warning" invisible="is_paused == False"/>
+
+                        <div class="oe_button_box" name="button_box">
+                            <button name="action_view_attachments" type="object" class="oe_stat_button" icon="fa-paperclip">
+                                <field name="attachment_count" widget="statinfo" string="Archivos"/>
+                            </button>
+                        </div>
+
+                        <div class="oe_title">
+                            <h1>
+                                <field name="name" readonly="1"/>
+                            </h1>
+                        </div>
+
+                        <group>
+                            <group name="basic_info" string="Información del Viaje">
+                                <field name="driver_id" options="{'no_create': True}" readonly="state != 'draft'" help="Selecciona el chofer que realizará el viaje. El vehículo se asignará automáticamente."/>
+                                <field name="vehicle_id" options="{'no_create': True}" readonly="1" help="Vehículo asignado automáticamente basado en el chofer seleccionado en Fleet."/>
+                                <field name="card_id" readonly="1" help="Tarjeta asignada automáticamente al vehículo."/>
+                                <field name="company_id" groups="base.group_multi_company"/>
+                            </group>
+                            <group name="trip_info" string="Destinos y Pasajeros">
+                                <field name="origin" readonly="state not in ['draft', 'active', 'paused']"/>
+                                <field name="destination" readonly="state not in ['draft', 'active', 'paused']"/>
+                                <field name="passenger_count" readonly="state not in ['draft', 'active', 'paused']"/>
+                                <field name="passenger_reference" readonly="state not in ['draft', 'active', 'paused']"/>
+                                <field name="consumed_credits" readonly="1" invisible="consumed_credits == 0"/>
+                            </group>
+                        </group>
+
+                        <group>
+                            <group name="payment_info" string="Información de Pago">
+                                <field name="payment_method" readonly="state not in ['draft', 'active', 'paused']"/>
+                                <field name="currency_id" invisible="1"/>
+                                <field name="amount" readonly="state not in ['draft', 'active', 'paused']"/>
+                                <field name="payment_reference" readonly="state not in ['draft', 'active', 'paused']"/>
+                            </group>
+                            <group name="time_info" string="Información de Tiempos">
+                                <field name="start_datetime" readonly="1"/>
+                                <field name="end_datetime" readonly="1"/>
+                                <field name="duration" widget="float_time" readonly="1"/>
+                                <field name="pause_duration" widget="float_time" readonly="1"/>
+                                <field name="effective_duration" widget="float_time" readonly="1"/>
+                                <field name="is_paused" invisible="1"/>
+                                <field name="current_pause_id" readonly="1" invisible="is_paused == False"/>
+                            </group>
+                        </group>
+
+                        <notebook>
+                            <page string="Pausas" name="pauses" invisible="pause_count == 0">
+                                <field name="pause_ids" readonly="1">
+                                    <list string="Pausas">
+                                        <field name="reason_id"/>
+                                        <field name="start_datetime"/>
+                                        <field name="end_datetime"/>
+                                        <field name="duration" widget="float_time"/>
+                                        <field name="is_active"/>
+                                        <field name="notes"/>
+                                    </list>
+                                </field>
+                            </page>
+                            <page string="Comentarios" name="comments">
+                                <field name="comments" placeholder="Comentarios adicionales sobre el viaje con formato enriquecido..."/>
+                            </page>
+                            <page string="Archivos" name="attachments">
+                                <group string="Archivos del Viaje">
+                                    <field name="document_ids" widget="many2many_binary" help="Archivos relacionados con el viaje (fotos, documentos, comprobantes, etc.)"/>
+                                </group>
+
+                                <div class="row mt-3">
+                                    <div class="col-12">
+                                        <button name="action_view_attachments" type="object" string="Ver Todos los Archivos" class="btn btn-secondary" help="Ver y gestionar todos los archivos del viaje"/>
+                                    </div>
+                                </div>
+                            </page>
+                        </notebook>
+                    </sheet>
+                    <chatter>
+                        <field name="message_follower_ids" widget="mail_followers"/>
+                        <field name="activity_ids" widget="mail_activity"/>
+                        <field name="message_ids" widget="mail_thread" options="{'post_refresh': 'recipients'}"/>
+                    </chatter>
+                </form>
+            </field>
+        </record>
+
+        <!-- Vista Kanban de Viajes -->
+        <record id="view_driverpro_trip_kanban" model="ir.ui.view">
+            <field name="name">driverpro.trip.kanban</field>
+            <field name="model">driverpro.trip</field>
+            <field name="arch" type="xml">
+                <kanban default_group_by="state" class="o_kanban_small_column">
+                    <field name="name"/>
+                    <field name="driver_id"/>
+                    <field name="vehicle_id"/>
+                    <field name="origin"/>
+                    <field name="destination"/>
+                    <field name="state"/>
+                    <field name="start_datetime"/>
+                    <field name="duration"/>
+                    <field name="amount"/>
+                    <field name="is_paused"/>
+                    <templates>
+                        <t t-name="card">
+                            <div t-attf-class="oe_kanban_card oe_kanban_global_click 
+                                #{record.is_paused.raw_value ? 'oe_kanban_card_fancy' : ''}">
+                                <div class="o_kanban_record_top">
+                                    <div class="o_kanban_record_headings">
+                                        <strong class="o_kanban_record_title">
+                                            <field name="name"/>
+                                        </strong>
+                                        <br/>
+                                        <span class="o_kanban_record_subtitle">
+                                            <field name="driver_id"/>
+ -                                            <field name="vehicle_id"/>
+                                        </span>
+                                    </div>
+                                    <div t-if="record.is_paused.raw_value" class="o_kanban_record_top_right">
+                                        <span class="badge badge-warning">Pausado</span>
+                                    </div>
+                                </div>
+                                <div class="o_kanban_record_body">
+                                    <div class="row">
+                                        <div class="col-12">
+                                            <strong>
+                                                <field name="origin"/>
+ →                                                <field name="destination"/>
+                                            </strong>
+                                        </div>
+                                    </div>
+                                    <div class="row" t-if="record.start_datetime.raw_value">
+                                        <div class="col-6">
+                                            <i class="fa fa-clock-o"/>
+                                            <field name="start_datetime" widget="datetime"/>
+                                        </div>
+                                        <div class="col-6" t-if="record.duration.raw_value">
+                                            <i class="fa fa-hourglass-half"/>
+                                            <field name="duration" widget="float_time"/>
+                                        </div>
+                                    </div>
+                                    <div class="row" t-if="record.amount.raw_value">
+                                        <div class="col-12">
+                                            <strong>Monto: </strong>
+                                            <field name="amount" widget="monetary"/>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </t>
+                    </templates>
+                </kanban>
+            </field>
+        </record>
+
+        <!-- Vista de Búsqueda para Viajes -->
+        <record id="view_driverpro_trip_search" model="ir.ui.view">
+            <field name="name">driverpro.trip.search</field>
+            <field name="model">driverpro.trip</field>
+            <field name="arch" type="xml">
+                <search string="Buscar Viajes">
+                    <field name="name" string="Número de Viaje"/>
+                    <field name="driver_id" string="Chofer"/>
+                    <field name="vehicle_id" string="Vehículo"/>
+                    <field name="origin" string="Origen"/>
+                    <field name="destination" string="Destino"/>
+                    <filter string="Borradores" name="draft" domain="[('state', '=', 'draft')]"/>
+                    <filter string="Activos" name="active" domain="[('state', '=', 'active')]"/>
+                    <filter string="Pausados" name="paused" domain="[('state', '=', 'paused')]"/>
+                    <filter string="Terminados" name="done" domain="[('state', '=', 'done')]"/>
+                    <filter string="Cancelados" name="cancelled" domain="[('state', '=', 'cancelled')]"/>
+                    <separator/>
+                    <filter string="Hoy" name="today" domain="[('start_datetime', '&gt;=', datetime.datetime.combine(context_today(), datetime.time(0,0,0))), ('start_datetime', '&lt;=', datetime.datetime.combine(context_today(), datetime.time(23,59,59)))]"/>
+                    <filter string="Esta Semana" name="this_week" domain="[('start_datetime', '&gt;=', (context_today() - datetime.timedelta(days=context_today().weekday())).strftime('%Y-%m-%d')), ('start_datetime', '&lt;=', (context_today() + datetime.timedelta(days=6-context_today().weekday())).strftime('%Y-%m-%d'))]"/>
+                    <filter string="Este Mes" name="this_month" domain="[('start_datetime', '&gt;=', (context_today().replace(day=1)).strftime('%Y-%m-%d')), ('start_datetime', '&lt;=', ((context_today().replace(day=1) + datetime.timedelta(days=32)).replace(day=1) - datetime.timedelta(days=1)).strftime('%Y-%m-%d'))]"/>
+                    <separator/>
+                    <group expand="0" string="Agrupar por">
+                        <filter string="Estado" name="group_state" domain="[]" context="{'group_by': 'state'}"/>
+                        <filter string="Chofer" name="group_driver" domain="[]" context="{'group_by': 'driver_id'}"/>
+                        <filter string="Vehículo" name="group_vehicle" domain="[]" context="{'group_by': 'vehicle_id'}"/>
+                        <filter string="Fecha de Inicio" name="group_date" domain="[]" context="{'group_by': 'start_datetime:day'}"/>
+                        <filter string="Compañía" name="group_company" domain="[]" context="{'group_by': 'company_id'}" groups="base.group_multi_company"/>
+                    </group>
+                </search>
+            </field>
+        </record>
+
+        <!-- Acción para Viajes -->
+        <record id="action_driverpro_trip" model="ir.actions.act_window">
+            <field name="name">Viajes DriverPro</field>
+            <field name="res_model">driverpro.trip</field>
+            <field name="view_mode">kanban,list,form</field>
+            <field name="context">{'search_default_today': 1}</field>
+            <field name="help" type="html">
+                <p class="o_view_nocontent_smiling_face">
+                    ¡Registra el primer viaje!
+                </p>
+                <p>
+                    Gestiona todos los viajes realizados por los choferes de manera simple y eficiente:
+                </p>
+                <ul>
+                    <li>
+                        <strong>Selección automática:</strong> Al elegir un chofer, el vehículo y tarjeta se asignan automáticamente basándose en la configuración del módulo Fleet.</li>
+                    <li>
+                        <strong>Control de estados:</strong> Inicia, pausa, reanuda y finaliza viajes con seguimiento completo de tiempos.</li>
+                    <li>
+                        <strong>Gestión de créditos:</strong> Consumo automático de créditos de tarjetas al iniciar cada viaje.</li>
+                    <li>
+                        <strong>Historial completo:</strong> Registro de pausas, adjuntos y comentarios para cada viaje.</li>
+                </ul>
+                <p>
+                    <em>Nota: Asegúrate de que los choferes tengan vehículos asignados en el módulo Fleet y que los vehículos tengan tarjetas activas.</em>
+                </p>
+            </field>
+        </record>
+
+        <!-- Vista Lista de Motivos de Pausa -->
+        <record id="view_driverpro_pause_reason_tree" model="ir.ui.view">
+            <field name="name">driverpro.pause.reason.tree</field>
+            <field name="model">driverpro.pause.reason</field>
+            <field name="arch" type="xml">
+                <list string="Motivos de Pausa" editable="bottom">
+                    <field name="name"/>
+                    <field name="code"/>
+                    <field name="active"/>
+                    <field name="description"/>
+                    <field name="company_id" groups="base.group_multi_company"/>
+                </list>
+            </field>
+        </record>
+
+        <!-- Vista Formulario de Motivos de Pausa -->
+        <record id="view_driverpro_pause_reason_form" model="ir.ui.view">
+            <field name="name">driverpro.pause.reason.form</field>
+            <field name="model">driverpro.pause.reason</field>
+            <field name="arch" type="xml">
+                <form string="Motivo de Pausa">
+                    <sheet>
+                        <div class="oe_title">
+                            <h1>
+                                <field name="name" placeholder="Nombre del motivo"/>
+                            </h1>
+                        </div>
+                        <group>
+                            <group>
+                                <field name="code"/>
+                                <field name="active"/>
+                                <field name="company_id" groups="base.group_multi_company"/>
+                            </group>
+                        </group>
+                        <group>
+                            <field name="description" placeholder="Descripción del motivo de pausa..."/>
+                        </group>
+                    </sheet>
+                </form>
+            </field>
+        </record>
+
+        <!-- Acción para Motivos de Pausa -->
+        <record id="action_driverpro_pause_reason" model="ir.actions.act_window">
+            <field name="name">Motivos de Pausa</field>
+            <field name="res_model">driverpro.pause.reason</field>
+            <field name="view_mode">list,form</field>
+            <field name="help" type="html">
+                <p class="o_view_nocontent_smiling_face">
+                    ¡Define los motivos de pausa!
+                </p>
+                <p>
+                    Configura los diferentes motivos por los cuales 
+                    los choferes pueden pausar sus viajes.
+                </p>
+            </field>
+        </record>
+
+    </data>
+</odoo>

@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+
+        <!-- Motivos de Pausa por Defecto -->
+        <record id="pause_reason_fuel" model="driverpro.pause.reason">
+            <field name="name">Carga de Combustible</field>
+            <field name="code">FUEL</field>
+            <field name="description">Pausa para cargar combustible en el vehículo</field>
+        </record>
+
+        <record id="pause_reason_maintenance" model="driverpro.pause.reason">
+            <field name="name">Mantenimiento</field>
+            <field name="code">MAINTENANCE</field>
+            <field name="description">Pausa por mantenimiento del vehículo</field>
+        </record>
+
+        <record id="pause_reason_break" model="driverpro.pause.reason">
+            <field name="name">Descanso</field>
+            <field name="code">BREAK</field>
+            <field name="description">Pausa para descanso del conductor</field>
+        </record>
+
+        <record id="pause_reason_traffic" model="driverpro.pause.reason">
+            <field name="name">Tráfico</field>
+            <field name="code">TRAFFIC</field>
+            <field name="description">Pausa por tráfico intenso o embotellamiento</field>
+        </record>
+
+        <record id="pause_reason_emergency" model="driverpro.pause.reason">
+            <field name="name">Emergencia</field>
+            <field name="code">EMERGENCY</field>
+            <field name="description">Pausa por situación de emergencia</field>
+        </record>
+
+        <record id="pause_reason_passenger" model="driverpro.pause.reason">
+            <field name="name">Espera de Pasajero</field>
+            <field name="code">PASSENGER</field>
+            <field name="description">Pausa esperando al pasajero</field>
+        </record>
+
+        <record id="pause_reason_other" model="driverpro.pause.reason">
+            <field name="name">Otro</field>
+            <field name="code">OTHER</field>
+            <field name="description">Otro motivo de pausa</field>
+        </record>
+
+    </data>
+</odoo>

@@ -1,0 +1,347 @@
+# -*- coding: utf-8 -*-
+
+from odoo import models, fields, api, _
+from odoo.exceptions import ValidationError, UserError
+
+
+class DriverproAssignment(models.Model):
+    """Asignación dinámica de vehículos a choferes"""
+    _name = 'driverpro.assignment'
+    _description = 'Asignación Vehículo-Chofer'
+    _inherit = ['mail.thread', 'mail.activity.mixin']
+    _order = 'date_start desc'
+
+    name = fields.Char(
+        string='Referencia',
+        compute='_compute_name',
+        store=True
+    )
+    
+    # Relaciones principales
+    driver_id = fields.Many2one(
+        'res.users',
+        string='Chofer',
+        required=True,
+        tracking=True
+    )
+    
+    vehicle_id = fields.Many2one(
+        'fleet.vehicle',
+        string='Vehículo',
+        required=True,
+        tracking=True
+    )
+    
+    card_id = fields.Many2one(
+        'driverpro.card',
+        string='Tarjeta Asignada',
+        tracking=True,
+        help="Tarjeta que se asignará automáticamente a los viajes"
+    )
+    
+    # Vigencia de la asignación
+    date_start = fields.Datetime(
+        string='Fecha de Inicio',
+        required=True,
+        default=fields.Datetime.now,
+        tracking=True
+    )
+    
+    date_end = fields.Datetime(
+        string='Fecha de Fin',
+        tracking=True,
+        help="Dejar vacío para asignación sin fecha límite"
+    )
+    
+    # Estado de la asignación
+    state = fields.Selection([
+        ('draft', 'Borrador'),
+        ('active', 'Activa'),
+        ('expired', 'Expirada'),
+        ('cancelled', 'Cancelada')
+    ], string='Estado', default='draft', tracking=True, compute='_compute_state', store=True)
+    
+    is_active = fields.Boolean(
+        string='Es Activa',
+        compute='_compute_is_active',
+        store=True,
+        help="Indica si la asignación está vigente"
+    )
+    
+    # Información adicional
+    notes = fields.Text(
+        string='Notas'
+    )
+    
+    # Relaciones con viajes - DESHABILITADO por integración con Fleet
+    # trip_ids = fields.One2many(
+    #     'driverpro.trip',
+    #     'assignment_id',
+    #     string='Viajes Realizados'
+    # )
+    
+    trip_count = fields.Integer(
+        string='Número de Viajes',
+        compute='_compute_trip_count',
+        store=True
+    )
+    
+    # Campos de auditoría
+    company_id = fields.Many2one(
+        'res.company',
+        string='Compañía',
+        default=lambda self: self.env.company,
+        required=True
+    )
+    
+    create_uid = fields.Many2one(
+        'res.users',
+        string='Creado por',
+        readonly=True
+    )
+    
+    write_uid = fields.Many2one(
+        'res.users',
+        string='Modificado por',
+        readonly=True
+    )
+
+    @api.depends('driver_id', 'vehicle_id', 'date_start')
+    def _compute_name(self):
+        """Genera el nombre de la asignación"""
+        for assignment in self:
+            if assignment.driver_id and assignment.vehicle_id:
+                assignment.name = _('%s → %s') % (
+                    assignment.driver_id.name,
+                    assignment.vehicle_id.name
+                )
+            else:
+                assignment.name = _('Nueva Asignación')
+
+    @api.depends('date_start', 'date_end')
+    def _compute_state(self):
+        """Calcula el estado de la asignación basado en fechas"""
+        now = fields.Datetime.now()
+        for assignment in self:
+            if assignment.state == 'cancelled':
+                continue
+            elif not assignment.date_start:
+                assignment.state = 'draft'
+            elif assignment.date_start > now:
+                assignment.state = 'draft'
+            elif assignment.date_end and assignment.date_end < now:
+                assignment.state = 'expired'
+            else:
+                assignment.state = 'active'
+
+    @api.depends('state')
+    def _compute_is_active(self):
+        """Determina si la asignación está activa"""
+        for assignment in self:
+            assignment.is_active = assignment.state == 'active'
+
+    @api.depends('driver_id', 'vehicle_id', 'date_start', 'date_end')
+    def _compute_trip_count(self):
+        """Cuenta los viajes realizados por el chofer en el vehículo durante el período"""
+        for assignment in self:
+            if assignment.driver_id and assignment.vehicle_id:
+                domain = [
+                    ('driver_id', '=', assignment.driver_id.id),
+                    ('vehicle_id', '=', assignment.vehicle_id.id),
+                ]
+                if assignment.date_start:
+                    domain.append(('start_datetime', '>=', assignment.date_start))
+                if assignment.date_end:
+                    domain.append(('start_datetime', '<=', assignment.date_end))
+                    
+                assignment.trip_count = self.env['driverpro.trip'].search_count(domain)
+            else:
+                assignment.trip_count = 0
+
+    @api.constrains('driver_id', 'vehicle_id', 'date_start', 'date_end')
+    def _check_no_overlap(self):
+        """Valida que no haya asignaciones superpuestas"""
+        for assignment in self:
+            if assignment.state == 'cancelled':
+                continue
+            
+            # Buscar asignaciones que puedan superponerse
+            domain = [
+                ('id', '!=', assignment.id),
+                ('state', '!=', 'cancelled'),
+                ('company_id', '=', assignment.company_id.id),
+                '|',
+                ('driver_id', '=', assignment.driver_id.id),
+                ('vehicle_id', '=', assignment.vehicle_id.id)
+            ]
+            
+            # Filtrar por fechas superpuestas
+            if assignment.date_end:
+                domain.extend([
+                    '|',
+                    '&', ('date_start', '<=', assignment.date_end), ('date_start', '>=', assignment.date_start),
+                    '&', ('date_end', '<=', assignment.date_end), ('date_end', '>=', assignment.date_start),
+                    '&', ('date_start', '<=', assignment.date_start), ('date_end', '>=', assignment.date_end)
+                ])
+            else:
+                domain.extend([
+                    '|',
+                    ('date_start', '>=', assignment.date_start),
+                    '&', ('date_end', '>=', assignment.date_start), ('date_end', '!=', False)
+                ])
+            
+            overlapping = self.search(domain)
+            
+            if overlapping:
+                for overlap in overlapping:
+                    if overlap.driver_id == assignment.driver_id:
+                        raise ValidationError(
+                            _('El chofer %s ya tiene una asignación activa en el período seleccionado.') 
+                            % assignment.driver_id.name
+                        )
+                    if overlap.vehicle_id == assignment.vehicle_id:
+                        raise ValidationError(
+                            _('El vehículo %s ya tiene una asignación activa en el período seleccionado.') 
+                            % assignment.vehicle_id.name
+                        )
+
+    @api.constrains('date_start', 'date_end')
+    def _check_date_consistency(self):
+        """Valida que la fecha de fin sea posterior a la de inicio"""
+        for assignment in self:
+            if assignment.date_start and assignment.date_end:
+                if assignment.date_start >= assignment.date_end:
+                    raise ValidationError(_('La fecha de fin debe ser posterior a la fecha de inicio.'))
+
+    @api.onchange('vehicle_id')
+    def _onchange_vehicle_id(self):
+        """Sugiere la tarjeta asignada al vehículo"""
+        if self.vehicle_id:
+            card = self.env['driverpro.card'].search([
+                ('vehicle_id', '=', self.vehicle_id.id),
+                ('active', '=', True)
+            ], limit=1)
+            if card:
+                self.card_id = card.id
+
+    def action_activate(self):
+        """Activa la asignación manualmente"""
+        for assignment in self:
+            if assignment.state != 'draft':
+                raise UserError(_('Solo se pueden activar asignaciones en borrador.'))
+            
+            assignment.date_start = fields.Datetime.now()
+            assignment._compute_state()
+            assignment.message_post(body=_('Asignación activada manualmente.'))
+
+    def action_cancel(self):
+        """Cancela la asignación"""
+        for assignment in self:
+            if assignment.state == 'cancelled':
+                raise UserError(_('La asignación ya está cancelada.'))
+            
+            # Verificar si hay viajes activos para este chofer y vehículo
+            active_trips = self.env['driverpro.trip'].search([
+                ('driver_id', '=', assignment.driver_id.id),
+                ('vehicle_id', '=', assignment.vehicle_id.id),
+                ('state', 'in', ['active', 'paused'])
+            ])
+            if active_trips:
+                raise UserError(
+                    _('No se puede cancelar la asignación porque tiene viajes activos: %s') 
+                    % ', '.join(active_trips.mapped('name'))
+                )
+            
+            assignment.state = 'cancelled'
+            assignment.message_post(body=_('Asignación cancelada.'))
+
+    def action_extend(self, new_end_date):
+        """Extiende la fecha de fin de la asignación"""
+        for assignment in self:
+            if assignment.state not in ['active', 'draft']:
+                raise UserError(_('Solo se pueden extender asignaciones activas o en borrador.'))
+            
+            if new_end_date and new_end_date <= assignment.date_start:
+                raise UserError(_('La nueva fecha de fin debe ser posterior a la fecha de inicio.'))
+            
+            assignment.date_end = new_end_date
+            assignment._compute_state()
+            assignment.message_post(body=_('Asignación extendida hasta %s.') % new_end_date)
+
+    def action_view_trips(self):
+        """Ver viajes de la asignación"""
+        return {
+            'name': _('Viajes de la Asignación'),
+            'type': 'ir.actions.act_window',
+            'res_model': 'driverpro.trip',
+            'view_mode': 'list,form',
+            'domain': [
+                ('driver_id', '=', self.driver_id.id),
+                ('vehicle_id', '=', self.vehicle_id.id),
+                ('date_start', '>=', self.date_start),
+                '|',
+                ('date_end', '=', False),
+                ('date_end', '<=', self.date_end if self.date_end else '2099-12-31')
+            ],
+            'context': {
+                'default_driver_id': self.driver_id.id,
+                'default_vehicle_id': self.vehicle_id.id,
+                'default_card_id': self.card_id.id
+            }
+        }
+
+    @api.model
+    def get_current_assignment(self, driver_id, vehicle_id=None):
+        """Obtiene la asignación actual de un chofer"""
+        domain = [
+            ('driver_id', '=', driver_id),
+            ('state', '=', 'active')
+        ]
+        
+        if vehicle_id:
+            domain.append(('vehicle_id', '=', vehicle_id))
+        
+        return self.search(domain, limit=1)
+
+    @api.model
+    def cron_update_assignment_states(self):
+        """Cron job para actualizar estados de asignaciones"""
+        # Buscar asignaciones que deberían estar expiradas
+        now = fields.Datetime.now()
+        expired_assignments = self.search([
+            ('state', '=', 'active'),
+            ('date_end', '!=', False),
+            ('date_end', '<', now)
+        ])
+        
+        for assignment in expired_assignments:
+            assignment._compute_state()
+            if assignment.state == 'expired':
+                assignment.message_post(body=_('Asignación expirada automáticamente.'))
+
+    def _get_conflicting_assignments(self):
+        """Obtiene asignaciones que pueden tener conflicto con esta"""
+        self.ensure_one()
+        
+        domain = [
+            ('id', '!=', self.id),
+            ('state', 'in', ['active', 'draft']),
+            ('company_id', '=', self.company_id.id),
+            '|',
+            ('driver_id', '=', self.driver_id.id),
+            ('vehicle_id', '=', self.vehicle_id.id)
+        ]
+        
+        # Agregar filtros de fecha si aplica
+        if self.date_end:
+            domain.extend([
+                '|',
+                '&', ('date_start', '<=', self.date_end), 
+                     '|', ('date_end', '=', False), ('date_end', '>=', self.date_start)
+            ])
+        else:
+            domain.extend([
+                '|', ('date_end', '=', False), ('date_end', '>=', self.date_start)
+            ])
+        
+        return self.search(domain)

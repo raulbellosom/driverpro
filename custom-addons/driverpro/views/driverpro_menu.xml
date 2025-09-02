@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+
+        <!-- Menú Principal -->
+        <menuitem id="driverpro_menu_root" name="DriverPro" sequence="20" groups="driverpro.group_driverpro_user,driverpro.group_driverpro_manager" web_icon="driverpro,static/description/icon.png"/>
+
+        <!-- Sección de Operaciones -->
+        <menuitem id="driverpro_menu_operations" name="Operaciones" parent="driverpro_menu_root" sequence="10" groups="driverpro.group_driverpro_user,driverpro.group_driverpro_manager"/>
+
+        <menuitem id="driverpro_menu_trips" name="Viajes" parent="driverpro_menu_operations" sequence="10" action="action_driverpro_trip" groups="driverpro.group_driverpro_user,driverpro.group_driverpro_manager"/>
+
+        <!-- Sección de Tarjetas -->
+        <menuitem id="driverpro_menu_cards" name="Tarjetas" parent="driverpro_menu_root" sequence="20" groups="driverpro.group_driverpro_user,driverpro.group_driverpro_manager"/>
+
+        <menuitem id="driverpro_menu_card_list" name="Todas las Tarjetas" parent="driverpro_menu_cards" sequence="10" action="action_driverpro_card" groups="driverpro.group_driverpro_user,driverpro.group_driverpro_manager"/>
+
+        <menuitem id="driverpro_menu_card_recharges" name="Recargas" parent="driverpro_menu_cards" sequence="20" action="action_driverpro_card_recharge" groups="driverpro.group_driverpro_user,driverpro.group_driverpro_manager"/>
+
+        <!-- Sección de Configuración -->
+        <menuitem id="driverpro_menu_config" name="Configuración" parent="driverpro_menu_root" sequence="100" groups="driverpro.group_driverpro_manager"/>
+
+        <menuitem id="driverpro_menu_pause_reasons" name="Motivos de Pausa" parent="driverpro_menu_config" sequence="10" action="action_driverpro_pause_reason" groups="driverpro.group_driverpro_manager"/>
+
+        <!-- Sección de Reportes -->
+        <menuitem id="driverpro_menu_reports" name="Reportes" parent="driverpro_menu_root" sequence="90" groups="driverpro.group_driverpro_user,driverpro.group_driverpro_manager"/>
+
+    </data>
+</odoo>
