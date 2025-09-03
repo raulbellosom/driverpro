@@ -28,11 +28,34 @@ export const useCreateTrip = () => {
       });
 
       // Hacer petición HTTP
-      const response = await fetch("/driverpro/api/trips/create", {
+      const response = await fetch("/api/trips/create", {
         method: "POST",
         body: formData,
         credentials: "include", // Para incluir cookies de sesión
       });
+
+      // Verificar si la respuesta HTTP es exitosa
+      if (!response.ok) {
+        let errorMessage = `Error ${response.status}`;
+        try {
+          const errorResult = await response.json();
+          errorMessage =
+            errorResult.message || errorResult.error || errorMessage;
+        } catch (e) {
+          // Si no se puede parsear el JSON, usar el mensaje por defecto
+          console.warn("No se pudo parsear la respuesta de error:", e);
+        }
+
+        toast.error(errorMessage, {
+          icon: "❌",
+        });
+
+        return {
+          success: false,
+          error: errorMessage,
+          code: response.status,
+        };
+      }
 
       const result = await response.json();
 
