@@ -1,5 +1,5 @@
 {
-  "name": "driverpro",
+  "name": "driver-pro",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -10,10 +10,22 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@hookform/resolvers": "^5.2.1",
     "@tailwindcss/vite": "^4.1.12",
+    "@tanstack/react-query": "^5.85.9",
+    "axios": "^1.11.0",
+    "idb-keyval": "^6.2.2",
+    "lucide-react": "^0.542.0",
+    "motion": "^12.23.12",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
-    "tailwindcss": "^4.1.12"
+    "react-hook-form": "^7.62.0",
+    "react-hot-toast": "^2.6.0",
+    "react-responsive": "^10.0.1",
+    "react-router-dom": "^7.8.2",
+    "tailwindcss": "^4.1.12",
+    "vite-plugin-pwa": "^1.0.3",
+    "zod": "^4.1.5"
   },
   "devDependencies": {
     "@eslint/js": "^9.33.0",

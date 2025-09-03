@@ -3,6 +3,7 @@
 import json
 import logging
 from datetime import datetime
+import pytz
 
 from odoo import http, _
 from odoo.http import request
@@ -14,15 +15,33 @@ _logger = logging.getLogger(__name__)
 class DriverproAPIController(http.Controller):
     """API Controller para el cliente de choferes"""
 
+    def _convert_to_user_timezone(self, datetime_utc):
+        """Convierte datetime UTC a la zona horaria del usuario"""
+        if not datetime_utc:
+            return None
+        
+        try:
+            # Obtener la zona horaria del usuario, por defecto México (UTC-6)
+            user_tz = request.env.user.tz or 'America/Mexico_City'
+            timezone = pytz.timezone(user_tz)
+            
+            # Convertir de UTC a la zona horaria del usuario
+            if datetime_utc.tzinfo is None:
+                # Si no tiene timezone info, asumir que es UTC
+                datetime_utc = pytz.UTC.localize(datetime_utc)
+            
+            local_dt = datetime_utc.astimezone(timezone)
+            return local_dt
+        except Exception as e:
+            _logger.warning(f"Error convirtiendo zona horaria: {e}")
+            return datetime_utc
+
     def _authenticate_driver(self):
         """Valida que el usuario sea un chofer autenticado"""
         if not request.env.user or request.env.user._is_public():
             return {'error': 'Usuario no autenticado', 'code': 401}
         
-        # Verificar que el usuario pertenezca al grupo de choferes
-        if not request.env.user.has_group('driverpro.group_portal_driver'):
-            return {'error': 'Acceso denegado - Usuario no es chofer', 'code': 403}
-        
+        # Solo verificamos que el usuario esté autenticado, sin grupo específico por ahora
         return {'success': True, 'user_id': request.env.user.id}
 
     def _json_response(self, data, status=200):
@@ -34,51 +53,76 @@ class DriverproAPIController(http.Controller):
         response.status_code = status
         return response
 
+    @http.route('/driverpro/api/test', type='http', auth='none', methods=['GET'], csrf=False)
+    def test_connection(self):
+        """Endpoint de prueba sin autenticación"""
+        return self._json_response({
+            'status': 'ok',
+            'message': 'DriverPro API funcionando correctamente',
+            'timestamp': datetime.now().isoformat()
+        })
+
     @http.route('/driverpro/api/me/assignment', type='http', auth='user', methods=['GET'], csrf=False)
     def get_current_assignment(self):
-        """Obtiene la asignación actual del chofer"""
+        """Obtiene la asignación actual del chofer usando Fleet"""
         try:
             auth_result = self._authenticate_driver()
             if 'error' in auth_result:
                 return self._json_response(auth_result, auth_result['code'])
 
             user_id = auth_result['user_id']
+            user = request.env.user
             
-            # Buscar asignación activa
-            assignment = request.env['driverpro.assignment'].search([
-                ('driver_id', '=', user_id),
-                ('state', '=', 'active')
-            ], limit=1)
-
-            if not assignment:
+            # Buscar el partner asociado al usuario
+            partner = user.partner_id
+            if not partner:
                 return self._json_response({
-                    'error': 'No hay asignación activa para este chofer',
+                    'error': 'Usuario sin partner asociado',
                     'code': 404
                 }, 404)
 
+            # Buscar vehículo asignado en Fleet
+            vehicle = request.env['fleet.vehicle'].search([
+                ('driver_id', '=', partner.id)
+            ], limit=1)
+
+            if not vehicle:
+                return self._json_response({
+                    'error': 'No hay vehículo asignado en Fleet',
+                    'code': 404
+                }, 404)
+
+            # Buscar tarjeta activa asociada al vehículo
+            card = request.env['driverpro.card'].search([
+                ('vehicle_id', '=', vehicle.id),
+                ('active', '=', True)
+            ], limit=1)
+
+            warnings = []
+            if not card:
+                warnings.append("No hay tarjeta asignada al vehículo")
+            elif card.balance <= 0:
+                warnings.append(f"Saldo insuficiente en tarjeta: {card.balance} créditos")
+
             # Construir respuesta
             data = {
-                'assignment_id': assignment.id,
                 'driver': {
-                    'id': assignment.driver_id.id,
-                    'name': assignment.driver_id.name,
-                    'email': assignment.driver_id.email
+                    'id': partner.id,
+                    'name': partner.name,
+                    'email': partner.email
                 },
                 'vehicle': {
-                    'id': assignment.vehicle_id.id,
-                    'name': assignment.vehicle_id.name,
-                    'license_plate': assignment.vehicle_id.license_plate,
-                    'model': assignment.vehicle_id.model_id.name if assignment.vehicle_id.model_id else None
+                    'id': vehicle.id,
+                    'name': vehicle.name,
+                    'license_plate': vehicle.license_plate,
+                    'model': vehicle.model_id.name if vehicle.model_id else None
                 },
                 'card': {
-                    'id': assignment.card_id.id,
-                    'name': assignment.card_id.name,
-                    'balance': assignment.card_id.balance
-                } if assignment.card_id else None,
-                'validity': {
-                    'start': assignment.date_start.isoformat() if assignment.date_start else None,
-                    'end': assignment.date_end.isoformat() if assignment.date_end else None
-                }
+                    'id': card.id,
+                    'name': card.name,
+                    'balance': card.balance
+                } if card else None,
+                'warnings': warnings
             }
 
             return self._json_response({'success': True, 'data': data})
@@ -135,27 +179,33 @@ class DriverproAPIController(http.Controller):
                     'destination': trip.destination,
                     'passenger_count': trip.passenger_count,
                     'passenger_reference': trip.passenger_reference,
-                    'start_datetime': trip.start_datetime.isoformat() if trip.start_datetime else None,
-                    'end_datetime': trip.end_datetime.isoformat() if trip.end_datetime else None,
+                    'start_datetime': self._convert_to_user_timezone(trip.start_datetime).isoformat() if trip.start_datetime else None,
+                    'end_datetime': self._convert_to_user_timezone(trip.end_datetime).isoformat() if trip.end_datetime else None,
                     'duration': trip.duration,
                     'pause_duration': trip.pause_duration,
                     'effective_duration': trip.effective_duration,
                     'consumed_credits': trip.consumed_credits,
-                    'amount': trip.amount,
-                    'currency': trip.currency_id.name if trip.currency_id else None,
+                    'amount_mxn': trip.amount_mxn,
+                    'amount_usd': trip.amount_usd,
+                    'total_amount_mxn': trip.total_amount_mxn,
+                    'payment_in_usd': trip.payment_in_usd,
+                    'exchange_rate': trip.exchange_rate,
                     'payment_method': trip.payment_method,
                     'payment_reference': trip.payment_reference,
                     'is_paused': trip.is_paused,
                     'pause_count': trip.pause_count,
                     'comments': trip.comments,
+                    'is_scheduled': trip.is_scheduled,
+                    'scheduled_datetime': self._convert_to_user_timezone(trip.scheduled_datetime).isoformat() if trip.scheduled_datetime else None,
                     'vehicle': {
                         'id': trip.vehicle_id.id,
                         'name': trip.vehicle_id.name,
                         'license_plate': trip.vehicle_id.license_plate
-                    },
+                    } if trip.vehicle_id else None,
                     'card': {
                         'id': trip.card_id.id,
-                        'name': trip.card_id.name
+                        'name': trip.card_id.name,
+                        'balance': trip.card_id.balance
                     } if trip.card_id else None
                 }
                 trips_data.append(trip_data)
@@ -175,108 +225,190 @@ class DriverproAPIController(http.Controller):
                 'code': 500
             }, 500)
 
-    @http.route('/driverpro/api/trips/create', type='json', auth='user', methods=['POST'], csrf=False)
-    def create_trip(self, **kwargs):
-        """Crea un nuevo viaje"""
+    @http.route('/driverpro/api/trips/create', type='http', auth='user', methods=['POST'], csrf=False)
+    def create_trip(self):
+        """Crea un nuevo viaje con soporte para archivos"""
         try:
             auth_result = self._authenticate_driver()
             if 'error' in auth_result:
-                return auth_result
+                return self._json_response(auth_result, auth_result['code'])
 
             user_id = auth_result['user_id']
+            user = request.env.user
+            partner = user.partner_id
+
+            # Obtener datos desde el request (puede ser JSON o FormData)
+            if request.httprequest.content_type and 'application/json' in request.httprequest.content_type:
+                # Request JSON
+                data = json.loads(request.httprequest.data.decode('utf-8'))
+            else:
+                # Request con FormData (para archivos)
+                data = dict(request.httprequest.form)
+                
+                # Convertir valores de string a los tipos correctos
+                if 'passenger_count' in data:
+                    data['passenger_count'] = int(data['passenger_count'])
+                if 'amount_mxn' in data:
+                    data['amount_mxn'] = float(data['amount_mxn'])
+                if 'amount_usd' in data:
+                    data['amount_usd'] = float(data['amount_usd'])
+                if 'exchange_rate' in data:
+                    data['exchange_rate'] = float(data['exchange_rate'])
+                if 'payment_in_usd' in data:
+                    data['payment_in_usd'] = data['payment_in_usd'].lower() == 'true'
+                if 'is_scheduled' in data:
+                    data['is_scheduled'] = data['is_scheduled'].lower() == 'true'
 
             # Validar campos requeridos
             required_fields = ['origin', 'destination']
             for field in required_fields:
-                if not kwargs.get(field):
-                    return {
+                if not data.get(field):
+                    return self._json_response({
                         'error': f'Campo requerido: {field}',
                         'code': 400
-                    }
+                    }, 400)
 
-            # Obtener asignación activa
-            assignment = request.env['driverpro.assignment'].search([
-                ('driver_id', '=', user_id),
-                ('state', '=', 'active')
+            # Buscar vehículo asignado en Fleet
+            vehicle = request.env['fleet.vehicle'].search([
+                ('driver_id', '=', partner.id)
             ], limit=1)
 
-            if not assignment:
-                return {
-                    'error': 'No hay asignación activa para crear viajes',
+            if not vehicle:
+                return self._json_response({
+                    'error': 'No hay vehículo asignado en Fleet',
                     'code': 404
-                }
+                }, 404)
+
+            # Buscar tarjeta activa asociada al vehículo
+            card = request.env['driverpro.card'].search([
+                ('vehicle_id', '=', vehicle.id),
+                ('active', '=', True)
+            ], limit=1)
 
             # Crear viaje
             trip_vals = {
                 'driver_id': user_id,
-                'vehicle_id': assignment.vehicle_id.id,
-                'card_id': assignment.card_id.id if assignment.card_id else False,
-                'origin': kwargs.get('origin'),
-                'destination': kwargs.get('destination'),
-                'passenger_count': kwargs.get('passenger_count', 1),
-                'passenger_reference': kwargs.get('passenger_reference'),
-                'comments': kwargs.get('comments'),
-                'payment_method': kwargs.get('payment_method'),
-                'amount': kwargs.get('amount', 0.0),
-                'payment_reference': kwargs.get('payment_reference')
+                'vehicle_id': vehicle.id,
+                'card_id': card.id if card else False,
+                'origin': data.get('origin'),
+                'destination': data.get('destination'),
+                'passenger_count': data.get('passenger_count', 1),
+                'passenger_reference': data.get('passenger_reference'),
+                'comments': data.get('comments'),
+                'payment_method': data.get('payment_method', 'cash'),
+                'amount_mxn': data.get('amount_mxn', 0.0),
+                'amount_usd': data.get('amount_usd', 0.0),
+                'payment_in_usd': data.get('payment_in_usd', False),
+                'exchange_rate': data.get('exchange_rate', 1.0),
+                'is_scheduled': data.get('is_scheduled', False),
+                'scheduled_datetime': data.get('scheduled_datetime'),
+                'payment_reference': data.get('payment_reference')
             }
 
             trip = request.env['driverpro.trip'].create(trip_vals)
 
-            return {
+            # Manejar archivos adjuntos si los hay
+            files_uploaded = []
+            if request.httprequest.files:
+                for file_key in request.httprequest.files:
+                    file_item = request.httprequest.files[file_key]
+                    if file_item and file_item.filename:
+                        try:
+                            # Crear attachment en Odoo
+                            attachment = request.env['ir.attachment'].create({
+                                'name': file_item.filename,
+                                'type': 'binary',
+                                'datas': file_item.read(),
+                                'res_model': 'driverpro.trip',
+                                'res_id': trip.id,
+                                'mimetype': file_item.content_type
+                            })
+                            files_uploaded.append({
+                                'name': file_item.filename,
+                                'id': attachment.id,
+                                'size': len(attachment.datas) if attachment.datas else 0
+                            })
+                        except Exception as e:
+                            _logger.warning(f"Error subiendo archivo {file_item.filename}: {e}")
+
+            return self._json_response({
                 'success': True,
                 'data': {
                     'trip_id': trip.id,
                     'name': trip.name,
-                    'state': trip.state
+                    'state': trip.state,
+                    'card_available_credits': card.balance if card else 0,
+                    'card_credits_warning': 'Saldo insuficiente para iniciar viaje' if not card or card.balance <= 0 else None,
+                    'files_uploaded': files_uploaded,
+                    'files_count': len(files_uploaded)
                 }
-            }
+            })
 
         except ValidationError as e:
-            return {
+            return self._json_response({
                 'error': 'Error de validación',
                 'message': str(e),
                 'code': 400
-            }
+            }, 400)
         except Exception as e:
             _logger.error(f"Error en create_trip: {str(e)}")
-            return {
+            return self._json_response({
                 'error': 'Error interno del servidor',
                 'message': str(e),
                 'code': 500
-            }
+            }, 500)
 
-    @http.route('/driverpro/api/trips/<int:trip_id>/start', type='json', auth='user', methods=['POST'], csrf=False)
-    def start_trip(self, trip_id, **kwargs):
+    @http.route('/driverpro/api/trips/<int:trip_id>/start', type='http', auth='user', methods=['POST'], csrf=False)
+    def start_trip(self, trip_id):
         """Inicia un viaje"""
-        return self._trip_action(trip_id, 'action_start', **kwargs)
+        return self._trip_action(trip_id, 'action_start')
 
-    @http.route('/driverpro/api/trips/<int:trip_id>/pause', type='json', auth='user', methods=['POST'], csrf=False)
-    def pause_trip(self, trip_id, **kwargs):
+    @http.route('/driverpro/api/trips/<int:trip_id>/pause', type='http', auth='user', methods=['POST'], csrf=False)
+    def pause_trip(self, trip_id):
         """Pausa un viaje"""
-        return self._trip_action(trip_id, 'action_pause', **kwargs)
+        # Obtener datos del request HTTP
+        data = {}
+        if request.httprequest.content_type and 'application/json' in request.httprequest.content_type:
+            try:
+                data = json.loads(request.httprequest.data.decode('utf-8'))
+            except:
+                data = {}
+        else:
+            data = dict(request.httprequest.form)
+        
+        return self._trip_action(trip_id, 'action_pause', data)
 
-    @http.route('/driverpro/api/trips/<int:trip_id>/resume', type='json', auth='user', methods=['POST'], csrf=False)
-    def resume_trip(self, trip_id, **kwargs):
+    @http.route('/driverpro/api/trips/<int:trip_id>/resume', type='http', auth='user', methods=['POST'], csrf=False)
+    def resume_trip(self, trip_id):
         """Reanuda un viaje"""
-        return self._trip_action(trip_id, 'action_resume', **kwargs)
+        return self._trip_action(trip_id, 'action_resume')
 
-    @http.route('/driverpro/api/trips/<int:trip_id>/done', type='json', auth='user', methods=['POST'], csrf=False)
-    def finish_trip(self, trip_id, **kwargs):
+    @http.route('/driverpro/api/trips/<int:trip_id>/done', type='http', auth='user', methods=['POST'], csrf=False)
+    def finish_trip(self, trip_id):
         """Finaliza un viaje"""
-        return self._trip_action(trip_id, 'action_done', **kwargs)
+        return self._trip_action(trip_id, 'action_done')
 
-    @http.route('/driverpro/api/trips/<int:trip_id>/cancel', type='json', auth='user', methods=['POST'], csrf=False)
-    def cancel_trip(self, trip_id, **kwargs):
+    @http.route('/driverpro/api/trips/<int:trip_id>/cancel', type='http', auth='user', methods=['POST'], csrf=False)
+    def cancel_trip(self, trip_id):
         """Cancela un viaje"""
-        return self._trip_action(trip_id, 'action_cancel', **kwargs)
+        # Obtener datos del request HTTP
+        data = {}
+        if request.httprequest.content_type and 'application/json' in request.httprequest.content_type:
+            try:
+                data = json.loads(request.httprequest.data.decode('utf-8'))
+            except:
+                data = {}
+        else:
+            data = dict(request.httprequest.form)
+        
+        return self._trip_action(trip_id, 'action_cancel', data)
 
-    def _trip_action(self, trip_id, action, **kwargs):
+    def _trip_action(self, trip_id, action, data=None):
         """Ejecuta una acción en un viaje"""
         try:
             auth_result = self._authenticate_driver()
             if 'error' in auth_result:
-                return auth_result
+                return self._json_response(auth_result, auth_result['code'])
 
             user_id = auth_result['user_id']
 
@@ -296,23 +428,23 @@ class DriverproAPIController(http.Controller):
             if action == 'action_start':
                 trip.action_start()
             elif action == 'action_pause':
-                reason_id = kwargs.get('reason_id')
-                notes = kwargs.get('notes')
+                reason_id = data.get('reason_id') if data else None
+                notes = data.get('notes') if data else None
                 trip.action_pause(reason_id=reason_id, notes=notes)
             elif action == 'action_resume':
                 trip.action_resume()
             elif action == 'action_done':
                 trip.action_done()
             elif action == 'action_cancel':
-                refund_credit = kwargs.get('refund_credit', False)
+                refund_credit = data.get('refund_credit', False) if data else False
                 trip.action_cancel(refund_credit=refund_credit)
             else:
-                return {
+                return self._json_response({
                     'error': f'Acción no válida: {action}',
                     'code': 400
-                }
+                }, 400)
 
-            return {
+            return self._json_response({
                 'success': True,
                 'data': {
                     'trip_id': trip.id,
@@ -320,27 +452,27 @@ class DriverproAPIController(http.Controller):
                     'state': trip.state,
                     'message': f'Acción {action} ejecutada exitosamente'
                 }
-            }
+            })
 
         except UserError as e:
-            return {
+            return self._json_response({
                 'error': 'Error de usuario',
                 'message': str(e),
                 'code': 400
-            }
+            }, 400)
         except ValidationError as e:
-            return {
+            return self._json_response({
                 'error': 'Error de validación',
                 'message': str(e),
                 'code': 400
-            }
+            }, 400)
         except Exception as e:
             _logger.error(f"Error en _trip_action ({action}): {str(e)}")
-            return {
+            return self._json_response({
                 'error': 'Error interno del servidor',
                 'message': str(e),
                 'code': 500
-            }
+            }, 500)
 
     @http.route('/driverpro/api/pause-reasons', type='http', auth='user', methods=['GET'], csrf=False)
     def get_pause_reasons(self):

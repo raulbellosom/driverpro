@@ -1,0 +1,2 @@
+Test file for trip creation
+This is a sample document for testing file uploads.
