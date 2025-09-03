@@ -52,6 +52,21 @@ class DriverproTrip(models.Model):
         help="Tarjeta asociada al vehículo"
     )
     
+    # Campo calculado para mostrar las recargas disponibles
+    card_available_credits = fields.Float(
+        string='Recargas Disponibles',
+        related='card_id.balance',
+        readonly=True,
+        help="Número de recargas disponibles en la tarjeta seleccionada"
+    )
+    
+    # Campo calculado para mostrar warnings
+    card_credits_warning = fields.Char(
+        string='Estado de Recargas',
+        compute='_compute_card_credits_warning',
+        help="Información sobre el estado de las recargas de la tarjeta"
+    )
+    
     # Información del viaje
     origin = fields.Char(
         string='Origen',
@@ -104,19 +119,58 @@ class DriverproTrip(models.Model):
         ('other', 'Otro')
     ], string='Método de Pago')
     
-    currency_id = fields.Many2one(
-        'res.currency',
-        string='Moneda',
-        default=lambda self: self.env.company.currency_id
+    # Montos por moneda
+    amount_mxn = fields.Float(
+        string='Monto MXN',
+        digits=(16, 2),
+        help="Monto en pesos mexicanos"
     )
     
-    amount = fields.Monetary(
-        string='Monto',
-        currency_field='currency_id'
+    amount_usd = fields.Float(
+        string='Monto USD',
+        digits=(16, 2),
+        help="Monto en dólares estadounidenses"
+    )
+    
+    # Tipo de cambio para conversión
+    exchange_rate = fields.Float(
+        string='Tipo de Cambio',
+        digits=(16, 4),
+        default=1.0,
+        help="Tipo de cambio USD a MXN (1 USD = X MXN)"
+    )
+    
+    # Total calculado en MXN
+    total_amount_mxn = fields.Float(
+        string='Total MXN',
+        compute='_compute_total_amount',
+        store=True,
+        digits=(16, 2),
+        help="Total convertido a pesos mexicanos"
     )
     
     payment_reference = fields.Char(
         string='Referencia de Pago'
+    )
+    
+    # Información de citas programadas
+    is_scheduled = fields.Boolean(
+        string='Viaje Programado',
+        default=False,
+        tracking=True,
+        help="Indica si este viaje tiene una cita programada"
+    )
+    
+    scheduled_datetime = fields.Datetime(
+        string='Fecha y Hora de Cita',
+        tracking=True,
+        help="Fecha y hora programada para la cita"
+    )
+    
+    scheduled_notification_sent = fields.Boolean(
+        string='Notificación Enviada',
+        default=False,
+        help="Indica si ya se envió la notificación de recordatorio"
     )
     
     # Información de tiempos
@@ -159,6 +213,21 @@ class DriverproTrip(models.Model):
         help="Créditos consumidos al iniciar el viaje"
     )
     
+    # Control de recargas
+    credit_consumed = fields.Boolean(
+        string='Recarga Consumida',
+        default=False,
+        tracking=True,
+        help="Indica si ya se consumió una recarga para este viaje"
+    )
+    
+    credit_refunded = fields.Boolean(
+        string='Recarga Reembolsada',
+        default=False,
+        tracking=True,
+        help="Indica si ya se reembolsó la recarga de este viaje"
+    )
+    
     # Relaciones
     pause_ids = fields.One2many(
         'driverpro.trip.pause',
@@ -192,11 +261,33 @@ class DriverproTrip(models.Model):
         required=True
     )
 
+    @api.depends('card_id.balance')
+    def _compute_card_credits_warning(self):
+        """Calcula el estado de las recargas de la tarjeta"""
+        for trip in self:
+            if not trip.card_id:
+                trip.card_credits_warning = ''
+            elif trip.card_id.balance <= 0:
+                trip.card_credits_warning = 'Sin recargas disponibles'
+            elif trip.card_id.balance <= 5:
+                trip.card_credits_warning = f'Pocas recargas ({trip.card_id.balance})'
+            else:
+                trip.card_credits_warning = f'Recargas disponibles: {trip.card_id.balance}'
+
+    @api.depends('amount_mxn', 'amount_usd', 'exchange_rate')
+    def _compute_total_amount(self):
+        """Calcula el total en MXN"""
+        for trip in self:
+            total_mxn = trip.amount_mxn
+            if trip.amount_usd > 0:
+                total_mxn += trip.amount_usd * trip.exchange_rate
+            trip.total_amount_mxn = total_mxn
+
     @api.model
     def create(self, vals):
         """Asignar secuencia al crear"""
-        if not vals.get('name') or vals.get('name') in ('/', _('Nuevo')):
-            vals['name'] = self.env['ir.sequence'].next_by_code('driverpro.trip') or 'TRIP-001'
+        if not vals.get('name') or vals.get('name') in ('/', _('Nuevo'), 'New'):
+            vals['name'] = self.env['ir.sequence'].next_by_code('driverpro.trip') or 'TRIP-000001'
         return super().create(vals)
 
     @api.model
@@ -277,6 +368,16 @@ class DriverproTrip(models.Model):
                 
                 if card:
                     self.card_id = card
+                    # Validar recargas disponibles y mostrar advertencia
+                    if card.balance <= 0:
+                        return {
+                            'warning': {
+                                'title': _('Sin Recargas Disponibles'),
+                                'message': _('La tarjeta %s no tiene recargas disponibles (Saldo: %s). '
+                                           'Puede crear el viaje en borrador, pero deberá recargar la tarjeta '
+                                           'antes de poder iniciarlo.') % (card.name, card.balance)
+                            }
+                        }
                 else:
                     self.card_id = False
                     # Mensaje informativo si no hay tarjeta
@@ -333,6 +434,16 @@ class DriverproTrip(models.Model):
             
             if card:
                 self.card_id = card
+                # Verificar recargas disponibles
+                if card.balance <= 0:
+                    return {
+                        'warning': {
+                            'title': _('Sin Recargas Disponibles'),
+                            'message': _('El vehículo %s tiene la tarjeta %s asignada, pero no tiene recargas disponibles (Saldo: %s). '
+                                       'Puede crear el viaje en borrador, pero deberá recargar la tarjeta antes de poder iniciarlo.') % 
+                                     (self.vehicle_id.name, card.name, card.balance)
+                        }
+                    }
             else:
                 self.card_id = False
                 return {
@@ -411,19 +522,27 @@ class DriverproTrip(models.Model):
             current_pause = trip.pause_ids.filtered('is_active')
             trip.current_pause_id = current_pause[0] if current_pause else False
 
-    @api.constrains('driver_id', 'vehicle_id')
-    def _check_driver_vehicle_consistency(self):
-        """Valida que el chofer y vehículo sean consistentes con Fleet"""
+    @api.constrains('driver_id')
+    def _check_driver_required(self):
+        """Valida que el chofer esté seleccionado"""
         for trip in self:
-            # Validar que el vehículo esté asignado
-            if not trip.vehicle_id:
-                raise ValidationError(
-                    _('Debe seleccionar un vehículo para el viaje. '
-                      'Verifique que el chofer %s tenga un vehículo asignado en Fleet.') % 
-                    (trip.driver_id.name if trip.driver_id else 'seleccionado')
-                )
-            
-            if trip.driver_id and trip.vehicle_id:
+            if not trip.driver_id:
+                raise ValidationError(_('Debe seleccionar un chofer para el viaje.'))
+    
+    @api.constrains('state', 'driver_id', 'vehicle_id')
+    def _check_driver_vehicle_for_start(self):
+        """Valida que el chofer y vehículo sean consistentes para iniciar el viaje"""
+        for trip in self:
+            # Solo validar para estados que requieren vehículo asignado
+            if trip.state in ['active', 'paused', 'done']:
+                # Validar que el vehículo esté asignado
+                if not trip.vehicle_id:
+                    raise ValidationError(
+                        _('Debe seleccionar un vehículo para iniciar el viaje. '
+                          'Verifique que el chofer %s tenga un vehículo asignado en Fleet.') % 
+                        trip.driver_id.name
+                    )
+                
                 # El driver_id en fleet.vehicle es un res.partner, no res.users
                 expected_partner = trip.driver_id.partner_id
                 if not expected_partner:
@@ -432,11 +551,25 @@ class DriverproTrip(models.Model):
                           'Verifique la configuración del usuario.') % trip.driver_id.name
                     )
                 
+                # Verificar que el vehículo esté asignado al chofer correcto
                 if trip.vehicle_id.driver_id != expected_partner:
                     raise ValidationError(
                         _('El vehículo %s no está asignado al chofer %s en el módulo de Flota. '
                           'Por favor, asigne el vehículo al contacto %s en Fleet o seleccione el vehículo correcto.') % 
                         (trip.vehicle_id.name, trip.driver_id.name, expected_partner.name)
+                    )
+    
+    @api.constrains('state', 'card_id', 'credit_consumed')
+    def _check_card_credits_for_start(self):
+        """Valida que se haya consumido una recarga para estados activos"""
+        for trip in self:
+            # Solo validar para estados que requieren recarga consumida
+            if trip.state in ['active', 'paused', 'done']:
+                if not trip.credit_consumed:
+                    raise ValidationError(
+                        _('No se puede cambiar el estado del viaje a "%s" sin haber consumido una recarga previamente. '
+                          'Debe iniciar el viaje primero para consumir la recarga.') % 
+                        dict(self._fields['state'].selection)[trip.state]
                     )
 
     @api.constrains('state', 'start_datetime', 'end_datetime')
@@ -447,11 +580,39 @@ class DriverproTrip(models.Model):
                 if trip.start_datetime >= trip.end_datetime:
                     raise ValidationError(_('La fecha de fin debe ser posterior a la fecha de inicio.'))
 
+    @api.constrains('is_scheduled', 'scheduled_datetime')
+    def _check_scheduled_datetime(self):
+        """Valida que las citas programadas tengan fecha válida"""
+        for trip in self:
+            if trip.is_scheduled and not trip.scheduled_datetime:
+                raise ValidationError(_('Los viajes programados deben tener una fecha y hora de cita.'))
+            
+            if trip.scheduled_datetime and trip.scheduled_datetime <= fields.Datetime.now():
+                raise ValidationError(_('La fecha de la cita debe ser en el futuro.'))
+
+    @api.constrains('amount_mxn', 'amount_usd')
+    def _check_amounts(self):
+        """Valida que al menos un monto sea mayor a cero"""
+        for trip in self:
+            if trip.amount_mxn < 0 or trip.amount_usd < 0:
+                raise ValidationError(_('Los montos no pueden ser negativos.'))
+
+    @api.constrains('exchange_rate')
+    def _check_exchange_rate(self):
+        """Valida que el tipo de cambio sea positivo"""
+        for trip in self:
+            if trip.exchange_rate <= 0:
+                raise ValidationError(_('El tipo de cambio debe ser mayor a cero.'))
+
     def action_start(self):
         """Inicia el viaje"""
         for trip in self:
             if trip.state != 'draft':
                 raise UserError(_('Solo se pueden iniciar viajes en borrador.'))
+            
+            # Validar que ya se consumió una recarga o hay recargas disponibles
+            if trip.credit_consumed:
+                raise UserError(_('Este viaje ya consumió una recarga previamente.'))
             
             # Validar que el chofer tenga el vehículo asignado en Fleet
             if not trip.vehicle_id:
@@ -473,7 +634,9 @@ class DriverproTrip(models.Model):
             
             # Validar que la tarjeta tiene créditos suficientes
             if trip.card_id.balance <= 0:
-                raise UserError(_('La tarjeta %s no tiene créditos suficientes para iniciar el viaje.') % trip.card_id.name)
+                raise UserError(_('La tarjeta %s no tiene recargas suficientes para iniciar el viaje. '
+                                'Saldo actual: %s. Por favor, realice una recarga antes de continuar.') % 
+                                (trip.card_id.name, trip.card_id.balance))
             
             # Consumir crédito de la tarjeta
             try:
@@ -482,8 +645,9 @@ class DriverproTrip(models.Model):
                     reference=_('Viaje: %s') % trip.name
                 )
                 trip.consumed_credits = 1.0
+                trip.credit_consumed = True
             except UserError as e:
-                raise UserError(_('Error al consumir crédito: %s') % str(e))
+                raise UserError(_('Error al consumir recarga: %s') % str(e))
             
             # Actualizar estado y tiempo
             trip.write({
@@ -491,7 +655,7 @@ class DriverproTrip(models.Model):
                 'start_datetime': fields.Datetime.now()
             })
             
-            trip.message_post(body=_('Viaje iniciado. Crédito consumido: %s') % trip.consumed_credits)
+            trip.message_post(body=_('Viaje iniciado. Recarga consumida: %s') % trip.consumed_credits)
 
     def action_pause(self, reason_id=None, notes=None):
         """Pausa el viaje"""
@@ -549,22 +713,11 @@ class DriverproTrip(models.Model):
             
             trip.message_post(body=_('Viaje terminado. Duración: %s horas') % trip.duration)
 
-    def action_cancel(self, refund_credit=False):
+    def action_cancel(self):
         """Cancela el viaje"""
         for trip in self:
             if trip.state == 'done':
                 raise UserError(_('No se pueden cancelar viajes terminados.'))
-            
-            # Reembolsar crédito si se solicita y el viaje había consumido
-            if refund_credit and trip.consumed_credits > 0 and trip.card_id:
-                self.env['driverpro.card.movement'].create({
-                    'card_id': trip.card_id.id,
-                    'movement_type': 'in',
-                    'amount': trip.consumed_credits,
-                    'reference': _('Reembolso por cancelación: %s') % trip.name,
-                    'movement_date': fields.Datetime.now(),
-                    'trip_id': trip.id
-                })
             
             # Finalizar pausas activas
             active_pauses = trip.pause_ids.filtered('is_active')
@@ -572,7 +725,35 @@ class DriverproTrip(models.Model):
                 pause.action_end()
             
             trip.state = 'cancelled'
-            trip.message_post(body=_('Viaje cancelado. Reembolso: %s') % ('Sí' if refund_credit else 'No'))
+            trip.message_post(body=_('Viaje cancelado.'))
+
+    def action_refund_credit(self):
+        """Reembolsa la recarga consumida por el viaje cancelado"""
+        for trip in self:
+            if trip.state != 'cancelled':
+                raise UserError(_('Solo se puede reembolsar recargas de viajes cancelados.'))
+            
+            if not trip.credit_consumed:
+                raise UserError(_('Este viaje no ha consumido ninguna recarga.'))
+            
+            if trip.credit_refunded:
+                raise UserError(_('La recarga de este viaje ya fue reembolsada previamente.'))
+            
+            if not trip.card_id:
+                raise UserError(_('No se puede reembolsar porque no hay tarjeta asignada.'))
+            
+            # Crear movimiento de reembolso
+            self.env['driverpro.card.movement'].create({
+                'card_id': trip.card_id.id,
+                'movement_type': 'in',
+                'amount': trip.consumed_credits,
+                'reference': _('Reembolso por cancelación: %s') % trip.name,
+                'movement_date': fields.Datetime.now(),
+                'trip_id': trip.id
+            })
+            
+            trip.credit_refunded = True
+            trip.message_post(body=_('Recarga reembolsada: %s créditos') % trip.consumed_credits)
 
     def action_view_pauses(self):
         """Ver pausas del viaje"""
@@ -583,6 +764,163 @@ class DriverproTrip(models.Model):
             'view_mode': 'list,form',
             'domain': [('trip_id', '=', self.id)],
             'context': {'default_trip_id': self.id}
+        }
+
+    @api.model
+    def send_scheduled_notifications(self):
+        """Método para enviar notificaciones de viajes programados (ejecutado por cron)"""
+        # Buscar viajes programados que necesitan notificación
+        notification_time = fields.Datetime.now() + timedelta(minutes=15)
+        
+        trips_to_notify = self.search([
+            ('is_scheduled', '=', True),
+            ('scheduled_datetime', '<=', notification_time),
+            ('scheduled_datetime', '>=', fields.Datetime.now()),
+            ('scheduled_notification_sent', '=', False),
+            ('state', '=', 'draft')
+        ])
+        
+        for trip in trips_to_notify:
+            trip._send_driver_notification()
+            trip.scheduled_notification_sent = True
+        
+        return len(trips_to_notify)
+
+    def _format_time_remaining(self, minutes):
+        """Convierte minutos a formato legible (días, horas, minutos)"""
+        if minutes < 0:
+            return "Tiempo vencido"
+        
+        days = minutes // (24 * 60)
+        hours = (minutes % (24 * 60)) // 60
+        mins = minutes % 60
+        
+        parts = []
+        if days > 0:
+            parts.append(f"{days} día{'s' if days != 1 else ''}")
+        if hours > 0:
+            parts.append(f"{hours} hora{'s' if hours != 1 else ''}")
+        if mins > 0 or not parts:  # Mostrar minutos si es lo único o hay minutos restantes
+            parts.append(f"{mins} minuto{'s' if mins != 1 else ''}")
+        
+        return " y ".join(parts)
+
+    def _send_driver_notification(self):
+        """Envía notificación al chofer sobre viaje próximo"""
+        self.ensure_one()
+        
+        if not self.driver_id or not self.scheduled_datetime:
+            return
+        
+        time_diff = self.scheduled_datetime - fields.Datetime.now()
+        minutes_left = int(time_diff.total_seconds() / 60)
+        time_formatted = self._format_time_remaining(minutes_left)
+        
+        # Buscar un tipo de actividad apropiado
+        activity_type = self.env['mail.activity.type'].search([
+            ('name', 'ilike', 'reminder')
+        ], limit=1)
+        
+        if not activity_type:
+            # Si no hay tipo "reminder", usar el primero disponible
+            activity_type = self.env['mail.activity.type'].search([], limit=1)
+        
+        if not activity_type:
+            # Si no hay tipos de actividad, crear uno básico
+            activity_type = self.env['mail.activity.type'].create({
+                'name': 'Recordatorio',
+                'summary': 'Recordatorio de viaje',
+                'delay_count': 0,
+                'delay_unit': 'days',
+            })
+        
+        # Crear actividad de recordatorio
+        activity = self.env['mail.activity'].create({
+            'activity_type_id': activity_type.id,
+            'res_model_id': self.env['ir.model']._get(self._name).id,
+            'res_id': self.id,
+            'user_id': self.driver_id.id,
+            'summary': _('🚗 Recordatorio: Viaje programado en %s') % time_formatted,
+            'note': _(
+                '📍 <b>Viaje programado para:</b> %s<br/>'
+                '🚩 <b>Origen:</b> %s<br/>'
+                '🎯 <b>Destino:</b> %s<br/>'
+                '👥 <b>Pasajeros:</b> %s<br/>'
+                '⏰ <b>Tiempo restante:</b> %s<br/><br/>'
+                '💡 <i>Por favor, prepárate para el viaje.</i>'
+            ) % (
+                self.scheduled_datetime.strftime('%d/%m/%Y %H:%M'),
+                self.origin or 'No especificado',
+                self.destination or 'No especificado',
+                self.passenger_count or 'No especificado',
+                time_formatted
+            ),
+            'date_deadline': fields.Date.today(),
+        })
+        
+        # Enviar notificación por email también
+        if self.driver_id.email:
+            email_body = _(
+                '<h3>🚗 Recordatorio de Viaje Programado</h3>'
+                '<p>Estimado/a <strong>%s</strong>,</p>'
+                '<p>Te recordamos que tienes un viaje programado:</p>'
+                '<ul>'
+                '<li><strong>📅 Fecha y hora:</strong> %s</li>'
+                '<li><strong>🚩 Origen:</strong> %s</li>'
+                '<li><strong>🎯 Destino:</strong> %s</li>'
+                '<li><strong>👥 Pasajeros:</strong> %s</li>'
+                '<li><strong>⏰ Tiempo restante:</strong> %s</li>'
+                '</ul>'
+                '<p>Por favor, prepárate para el viaje.</p>'
+                '<p>Saludos,<br/>Equipo DriverPro</p>'
+            ) % (
+                self.driver_id.name,
+                self.scheduled_datetime.strftime('%d/%m/%Y %H:%M'),
+                self.origin or 'No especificado',
+                self.destination or 'No especificado', 
+                self.passenger_count or 'No especificado',
+                time_formatted
+            )
+            
+            self.env['mail.mail'].create({
+                'subject': _('🚗 Recordatorio: Viaje programado en %s') % time_formatted,
+                'body_html': email_body,
+                'email_to': self.driver_id.email,
+                'email_from': self.env.user.email or 'noreply@driverpro.com',
+                'state': 'outgoing',
+            }).send()
+        
+        # Enviar mensaje en el chatter
+        self.message_post(
+            body=_(
+                '📧 Notificación enviada al chofer <strong>%s</strong>: Viaje programado en <strong>%s</strong>'
+            ) % (self.driver_id.name, time_formatted),
+            subtype_xmlid="mail.mt_note",
+        )
+
+    @api.onchange('is_scheduled')
+    def _onchange_is_scheduled(self):
+        """Limpiar fecha de cita si no es programado"""
+        if not self.is_scheduled:
+            self.scheduled_datetime = False
+            self.scheduled_notification_sent = False
+
+    def action_send_test_notification(self):
+        """Envía una notificación de prueba al chofer"""
+        self.ensure_one()
+        if not self.driver_id:
+            raise UserError(_('Debe seleccionar un chofer para enviar la notificación.'))
+        
+        self._send_driver_notification()
+        
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Notificación Enviada'),
+                'message': _('Se ha enviado una notificación de prueba a %s') % self.driver_id.name,
+                'type': 'success',
+            }
         }
 
 

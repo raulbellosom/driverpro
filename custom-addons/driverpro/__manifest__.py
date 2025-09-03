@@ -38,6 +38,7 @@
         # Data
         'data/driverpro_sequence.xml',
         'data/driverpro_data.xml',
+        'data/driverpro_cron.xml',
         
         # Views - Las acciones primero, luego los menús
         'views/driverpro_card_views.xml',

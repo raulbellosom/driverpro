@@ -11,11 +11,19 @@
                     <field name="name"/>
                     <field name="driver_id"/>
                     <field name="vehicle_id"/>
+                    <field name="card_id"/>
+                    <field name="card_available_credits" decoration-danger="card_available_credits &lt;= 0"/>
                     <field name="origin"/>
                     <field name="destination"/>
+                    <field name="is_scheduled" string="Programado"/>
+                    <field name="scheduled_datetime" string="Fecha Cita"/>
                     <field name="start_datetime"/>
                     <field name="duration" widget="float_time"/>
-                    <field name="amount" sum="Total"/>
+                    <field name="amount_mxn" string="MXN" sum="Total MXN"/>
+                    <field name="amount_usd" string="USD" sum="Total USD"/>
+                    <field name="total_amount_mxn" string="Total MXN" sum="Total General"/>
+                    <field name="credit_consumed" string="Rec. Consumida"/>
+                    <field name="credit_refunded" string="Rec. Reembolsada"/>
                     <field name="state"/>
                     <field name="company_id" groups="base.group_multi_company"/>
                 </list>
@@ -29,11 +37,12 @@
             <field name="arch" type="xml">
                 <form string="Viaje Driver Pro">
                     <header>
-                        <button name="action_start" type="object" string="Iniciar Viaje" class="oe_highlight" invisible="state != 'draft'"/>
+                        <button name="action_start" type="object" string="Iniciar Viaje" class="oe_highlight" invisible="state != 'draft' or not id" help="Iniciar el viaje y consumir una recarga de la tarjeta."/>
                         <button name="action_pause" type="object" string="Pausar" invisible="state != 'active'"/>
                         <button name="action_resume" type="object" string="Reanudar" class="oe_highlight" invisible="state != 'paused'"/>
                         <button name="action_done" type="object" string="Finalizar" class="oe_highlight" invisible="state not in ['active', 'paused']"/>
                         <button name="action_cancel" type="object" string="Cancelar" invisible="state not in ['draft', 'active', 'paused']"/>
+                        <button name="action_refund_credit" type="object" string="Recuperar Recarga" class="btn-warning" invisible="state != 'cancelled' or not credit_consumed or credit_refunded" confirm="¿Está seguro de que desea recuperar la recarga de este viaje cancelado? Esta acción no se puede deshacer." help="Recuperar la recarga consumida por este viaje cancelado."/>
                         <field name="state" widget="statusbar" statusbar_visible="draft,active,paused,done"/>
                     </header>
                     <sheet>
@@ -60,8 +69,14 @@
                         <group>
                             <group name="basic_info" string="Información del Viaje">
                                 <field name="driver_id" options="{'no_create': True}" readonly="state != 'draft'" help="Selecciona el chofer que realizará el viaje. El vehículo se asignará automáticamente."/>
-                                <field name="vehicle_id" options="{'no_create': True}" readonly="1" help="Vehículo asignado automáticamente basado en el chofer seleccionado en Fleet."/>
-                                <field name="card_id" readonly="1" help="Tarjeta asignada automáticamente al vehículo."/>
+                                <field name="vehicle_id" options="{'no_create': True}" readonly="state != 'draft'" help="Vehículo asignado automáticamente basado en el chofer seleccionado en Fleet."/>
+                                <field name="card_id" readonly="state != 'draft'" help="Tarjeta asignada automáticamente al vehículo."/>
+                                <field name="card_available_credits" readonly="1" invisible="card_id == False" decoration-danger="card_available_credits &lt;= 0" decoration-warning="card_available_credits &lt;= 5" decoration-success="card_available_credits &gt; 5" help="Número de recargas disponibles en la tarjeta. Se necesita al menos 1 recarga para iniciar el viaje."/>
+                                <div class="alert alert-warning" role="alert" invisible="not card_id or card_available_credits &gt; 0">
+                                    <i class="fa fa-exclamation-triangle"/>
+                                    <strong>Sin recargas disponibles:</strong> Esta tarjeta no tiene recargas disponibles. 
+                                    Puede crear el viaje en borrador, pero debe recargar la tarjeta antes de poder iniciarlo.
+                                </div>
                                 <field name="company_id" groups="base.group_multi_company"/>
                             </group>
                             <group name="trip_info" string="Destinos y Pasajeros">
@@ -70,16 +85,29 @@
                                 <field name="passenger_count" readonly="state not in ['draft', 'active', 'paused']"/>
                                 <field name="passenger_reference" readonly="state not in ['draft', 'active', 'paused']"/>
                                 <field name="consumed_credits" readonly="1" invisible="consumed_credits == 0"/>
+                                <field name="credit_consumed" readonly="1" invisible="not credit_consumed"/>
+                                <field name="credit_refunded" readonly="1" invisible="not credit_refunded"/>
                             </group>
                         </group>
 
                         <group>
                             <group name="payment_info" string="Información de Pago">
                                 <field name="payment_method" readonly="state not in ['draft', 'active', 'paused']"/>
-                                <field name="currency_id" invisible="1"/>
-                                <field name="amount" readonly="state not in ['draft', 'active', 'paused']"/>
+                                <field name="amount_mxn" readonly="state not in ['draft', 'active', 'paused']"/>
+                                <field name="amount_usd" readonly="state not in ['draft', 'active', 'paused']"/>
+                                <field name="exchange_rate" readonly="state not in ['draft', 'active', 'paused']" invisible="amount_usd == 0"/>
+                                <field name="total_amount_mxn" readonly="1" string="Total MXN" decoration-bf="1" invisible="amount_mxn == 0 and amount_usd == 0"/>
                                 <field name="payment_reference" readonly="state not in ['draft', 'active', 'paused']"/>
                             </group>
+                            <group name="schedule_info" string="Programación de Cita">
+                                <field name="is_scheduled" readonly="state != 'draft'"/>
+                                <field name="scheduled_datetime" readonly="state != 'draft'" invisible="not is_scheduled" required="is_scheduled"/>
+                                <field name="scheduled_notification_sent" readonly="1" invisible="not is_scheduled or not scheduled_notification_sent"/>
+                                <button name="action_send_test_notification" type="object" string="Enviar Notificación de Prueba" class="btn-link" invisible="not is_scheduled or state not in ['draft', 'active']"/>
+                            </group>
+                        </group>
+
+                        <group>
                             <group name="time_info" string="Información de Tiempos">
                                 <field name="start_datetime" readonly="1"/>
                                 <field name="end_datetime" readonly="1"/>
@@ -106,6 +134,21 @@
                             </page>
                             <page string="Comentarios" name="comments">
                                 <field name="comments" placeholder="Comentarios adicionales sobre el viaje con formato enriquecido..."/>
+                            </page>
+                            <page string="Programación" name="scheduling" invisible="not is_scheduled">
+                                <group string="Información de Cita Programada">
+                                    <group>
+                                        <field name="scheduled_datetime" readonly="state != 'draft'"/>
+                                        <field name="scheduled_notification_sent" readonly="1"/>
+                                    </group>
+                                    <group>
+                                        <group>
+                                            <button name="action_send_test_notification" type="object" string="Enviar Notificación de Prueba" class="btn-warning" invisible="state != 'draft'" help="Enviar notificación de prueba al chofer"/>
+                                        </group>
+                                    </group>
+                                </group>
+                                <separator string="Actividades y Notificaciones"/>
+                                <field name="activity_ids" widget="mail_activity"/>
                             </page>
                             <page string="Archivos" name="attachments">
                                 <group string="Archivos del Viaje">
@@ -143,7 +186,9 @@
                     <field name="state"/>
                     <field name="start_datetime"/>
                     <field name="duration"/>
-                    <field name="amount"/>
+                    <field name="amount_mxn"/>
+                    <field name="amount_usd"/>
+                    <field name="total_amount_mxn"/>
                     <field name="is_paused"/>
                     <templates>
                         <t t-name="card">
@@ -183,10 +228,10 @@
                                             <field name="duration" widget="float_time"/>
                                         </div>
                                     </div>
-                                    <div class="row" t-if="record.amount.raw_value">
+                                    <div class="row" t-if="record.total_amount_mxn.raw_value">
                                         <div class="col-12">
-                                            <strong>Monto: </strong>
-                                            <field name="amount" widget="monetary"/>
+                                            <strong>Total: </strong>
+                                            <field name="total_amount_mxn" widget="monetary"/>
                                         </div>
                                     </div>
                                 </div>
@@ -214,6 +259,10 @@
                     <filter string="Terminados" name="done" domain="[('state', '=', 'done')]"/>
                     <filter string="Cancelados" name="cancelled" domain="[('state', '=', 'cancelled')]"/>
                     <separator/>
+                    <filter string="Viajes Programados" name="scheduled" domain="[('is_scheduled', '=', True)]"/>
+                    <filter string="Citas Próximas (15 min)" name="upcoming" domain="[('scheduled_datetime', '&gt;=', datetime.datetime.now()), ('scheduled_datetime', '&lt;=', datetime.datetime.now() + datetime.timedelta(minutes=15))]"/>
+                    <filter string="Citas Hoy" name="scheduled_today" domain="[('scheduled_datetime', '&gt;=', datetime.datetime.combine(context_today(), datetime.time(0,0,0))), ('scheduled_datetime', '&lt;=', datetime.datetime.combine(context_today(), datetime.time(23,59,59)))]"/>
+                    <separator/>
                     <filter string="Hoy" name="today" domain="[('start_datetime', '&gt;=', datetime.datetime.combine(context_today(), datetime.time(0,0,0))), ('start_datetime', '&lt;=', datetime.datetime.combine(context_today(), datetime.time(23,59,59)))]"/>
                     <filter string="Esta Semana" name="this_week" domain="[('start_datetime', '&gt;=', (context_today() - datetime.timedelta(days=context_today().weekday())).strftime('%Y-%m-%d')), ('start_datetime', '&lt;=', (context_today() + datetime.timedelta(days=6-context_today().weekday())).strftime('%Y-%m-%d'))]"/>
                     <filter string="Este Mes" name="this_month" domain="[('start_datetime', '&gt;=', (context_today().replace(day=1)).strftime('%Y-%m-%d')), ('start_datetime', '&lt;=', ((context_today().replace(day=1) + datetime.timedelta(days=32)).replace(day=1) - datetime.timedelta(days=1)).strftime('%Y-%m-%d'))]"/>
@@ -222,7 +271,9 @@
                         <filter string="Estado" name="group_state" domain="[]" context="{'group_by': 'state'}"/>
                         <filter string="Chofer" name="group_driver" domain="[]" context="{'group_by': 'driver_id'}"/>
                         <filter string="Vehículo" name="group_vehicle" domain="[]" context="{'group_by': 'vehicle_id'}"/>
+                        <filter string="Programados" name="group_scheduled" domain="[]" context="{'group_by': 'is_scheduled'}"/>
                         <filter string="Fecha de Inicio" name="group_date" domain="[]" context="{'group_by': 'start_datetime:day'}"/>
+                        <filter string="Fecha de Cita" name="group_scheduled_date" domain="[]" context="{'group_by': 'scheduled_datetime:day'}"/>
                         <filter string="Compañía" name="group_company" domain="[]" context="{'group_by': 'company_id'}" groups="base.group_multi_company"/>
                     </group>
                 </search>
@@ -234,7 +285,7 @@
             <field name="name">Viajes Driver Pro</field>
             <field name="res_model">driverpro.trip</field>
             <field name="view_mode">kanban,list,form</field>
-            <field name="context">{'search_default_today': 1}</field>
+            <field name="context">{}</field>
             <field name="help" type="html">
                 <p class="o_view_nocontent_smiling_face">
                     ¡Registra el primer viaje!

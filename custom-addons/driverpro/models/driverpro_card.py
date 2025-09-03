@@ -332,13 +332,22 @@ class DriverproCardRecharge(models.Model):
         """Override write para evitar edición de recargas confirmadas/canceladas y sincronizar adjuntos"""
         for record in self:
             if record.state in ('confirmed', 'cancelled'):
-                # Permitir solo cambios en el campo state y notas
-                allowed_fields = {'state', 'notes'}
+                # Solo administradores pueden modificar recargas confirmadas/canceladas
+                if not self.env.user.has_group('driverpro.group_driverpro_manager'):
+                    raise UserError(_(
+                        'Solo los administradores pueden modificar recargas que están %s. '
+                        'Contacte a su administrador si necesita realizar cambios.'
+                    ) % ('confirmadas' if record.state == 'confirmed' else 'canceladas'))
+                
+                # Incluso para administradores, permitir solo cambios en campos específicos
+                allowed_fields = {'state', 'notes', 'invoice_number', 'invoice_date', 
+                                'invoice_pdf', 'invoice_pdf_filename', 'invoice_xml', 'invoice_xml_filename',
+                                'payment_receipt', 'payment_receipt_filename'}
                 if set(vals.keys()) - allowed_fields:
                     raise UserError(_(
-                        'No se puede modificar una recarga que está %s. '
-                        'Solo se permiten cambios en notas.'
-                    ) % ('confirmada' if record.state == 'confirmed' else 'cancelada'))
+                        'En recargas %s solo se pueden modificar: Estado, Notas y Documentos. '
+                        'No se puede cambiar: monto, tarjeta o fecha de recarga.'
+                    ) % ('confirmadas' if record.state == 'confirmed' else 'canceladas'))
         
         res = super().write(vals)
         
@@ -355,7 +364,22 @@ class DriverproCardRecharge(models.Model):
         """Override unlink para evitar eliminación de recargas confirmadas"""
         for record in self:
             if record.state == 'confirmed':
-                raise UserError(_('No se puede eliminar una recarga confirmada.'))
+                # Solo administradores pueden eliminar recargas confirmadas
+                if not self.env.user.has_group('driverpro.group_driverpro_manager'):
+                    raise UserError(_(
+                        'Solo los administradores pueden eliminar recargas confirmadas. '
+                        'Contacte a su administrador si necesita eliminar esta recarga.'))
+                else:
+                    # Incluso para administradores, preguntar confirmación
+                    raise UserError(_(
+                        'Esta recarga está confirmada y ya generó movimientos en la tarjeta. '
+                        'Para eliminarla, primero debe cancelarla y luego podrá eliminarla si es necesario.'))
+            elif record.state == 'cancelled':
+                # Para recargas canceladas, solo administradores pueden eliminar
+                if not self.env.user.has_group('driverpro.group_driverpro_manager'):
+                    raise UserError(_(
+                        'Solo los administradores pueden eliminar recargas canceladas. '
+                        'Contacte a su administrador si necesita eliminar esta recarga.'))
         return super().unlink()
 
     def action_confirm(self):
