@@ -37,14 +37,11 @@ export default defineConfig({
       workbox: {
         runtimeCaching: [
           {
-            urlPattern: /^.*\/driverpro\/api\/.*$/,
+            urlPattern: /^\/api\/.*$/,
             handler: "NetworkFirst",
             options: {
               cacheName: "driverpro-api",
-              expiration: {
-                maxEntries: 100,
-                maxAgeSeconds: 60 * 60 * 24, // 24 horas
-              },
+              expiration: { maxEntries: 100, maxAgeSeconds: 86400 },
             },
           },
         ],
@@ -58,10 +55,12 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
       },
-      "/driverpro": {
-        target: "http://127.0.0.1:18069",
+      // añade este y puedes borrar "/driverpro"
+      "/api": {
+        target: "http://127.0.0.1:18069/driverpro",
         changeOrigin: true,
         secure: false,
+        rewrite: (p) => p.replace(/^\/api/, "/api"),
       },
     },
   },

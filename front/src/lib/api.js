@@ -133,22 +133,22 @@ export const authAPI = {
 // DriverPro API
 export const driverAPI = {
   getAssignment: async () => {
-    const response = await api.get("/driverpro/api/me/assignment");
+    const response = await api.get("/api/me/assignment");
     return response.data;
   },
 
   getTrips: async (params = {}) => {
-    const response = await api.get("/driverpro/api/trips", { params });
+    const response = await api.get("/api/trips", { params });
     return response.data;
   },
 
   createTrip: async (tripData) => {
-    const response = await api.post("/driverpro/api/trips/create", tripData);
+    const response = await api.post("/api/trips/create", tripData);
     return response.data;
   },
 
   startTrip: async (tripId) => {
-    const response = await fetch(`/driverpro/api/trips/${tripId}/start`, {
+    const response = await fetch(`/api/trips/${tripId}/start`, {
       method: "POST",
       credentials: "include",
     });
@@ -156,7 +156,7 @@ export const driverAPI = {
   },
 
   pauseTrip: async (tripId, data) => {
-    const response = await fetch(`/driverpro/api/trips/${tripId}/pause`, {
+    const response = await fetch(`/api/trips/${tripId}/pause`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -168,7 +168,7 @@ export const driverAPI = {
   },
 
   resumeTrip: async (tripId) => {
-    const response = await fetch(`/driverpro/api/trips/${tripId}/resume`, {
+    const response = await fetch(`/api/trips/${tripId}/resume`, {
       method: "POST",
       credentials: "include",
     });
@@ -176,7 +176,7 @@ export const driverAPI = {
   },
 
   completeTrip: async (tripId) => {
-    const response = await fetch(`/driverpro/api/trips/${tripId}/done`, {
+    const response = await fetch(`/api/trips/${tripId}/done`, {
       method: "POST",
       credentials: "include",
     });
@@ -184,7 +184,7 @@ export const driverAPI = {
   },
 
   cancelTrip: async (tripId, data = {}) => {
-    const response = await fetch(`/driverpro/api/trips/${tripId}/cancel`, {
+    const response = await fetch(`/api/trips/${tripId}/cancel`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -196,7 +196,7 @@ export const driverAPI = {
   },
 
   getPauseReasons: async () => {
-    const response = await fetch("/driverpro/api/pause-reasons", {
+    const response = await fetch("/api/pause-reasons", {
       method: "GET",
       credentials: "include",
     });
@@ -204,14 +204,14 @@ export const driverAPI = {
   },
 
   getHealth: async () => {
-    const response = await api.get("/driverpro/api/health");
+    const response = await api.get("/api/health");
     return response.data;
   },
 };
 
 // Test API connection
 export const testAPI = {
-  test: () => api.get("/driverpro/api/test"),
+  test: () => api.get("/api/test"),
 };
 
 export default api;
