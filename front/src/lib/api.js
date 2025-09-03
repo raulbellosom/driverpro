@@ -152,7 +152,20 @@ export const driverAPI = {
       method: "POST",
       credentials: "include",
     });
-    return await response.json();
+
+    const result = await response.json();
+
+    // Si la respuesta HTTP no es exitosa, lanzar error con el mensaje del servidor
+    if (!response.ok) {
+      const error = new Error(
+        result.message || result.error || `Error ${response.status}`
+      );
+      error.code = result.code || response.status;
+      error.response = result;
+      throw error;
+    }
+
+    return result;
   },
 
   pauseTrip: async (tripId, data) => {
@@ -164,7 +177,20 @@ export const driverAPI = {
       body: JSON.stringify(data),
       credentials: "include",
     });
-    return await response.json();
+
+    const result = await response.json();
+
+    // Si la respuesta HTTP no es exitosa, lanzar error con el mensaje del servidor
+    if (!response.ok) {
+      const error = new Error(
+        result.message || result.error || `Error ${response.status}`
+      );
+      error.code = result.code || response.status;
+      error.response = result;
+      throw error;
+    }
+
+    return result;
   },
 
   resumeTrip: async (tripId) => {
@@ -172,7 +198,20 @@ export const driverAPI = {
       method: "POST",
       credentials: "include",
     });
-    return await response.json();
+
+    const result = await response.json();
+
+    // Si la respuesta HTTP no es exitosa, lanzar error con el mensaje del servidor
+    if (!response.ok) {
+      const error = new Error(
+        result.message || result.error || `Error ${response.status}`
+      );
+      error.code = result.code || response.status;
+      error.response = result;
+      throw error;
+    }
+
+    return result;
   },
 
   completeTrip: async (tripId) => {
@@ -180,7 +219,20 @@ export const driverAPI = {
       method: "POST",
       credentials: "include",
     });
-    return await response.json();
+
+    const result = await response.json();
+
+    // Si la respuesta HTTP no es exitosa, lanzar error con el mensaje del servidor
+    if (!response.ok) {
+      const error = new Error(
+        result.message || result.error || `Error ${response.status}`
+      );
+      error.code = result.code || response.status;
+      error.response = result;
+      throw error;
+    }
+
+    return result;
   },
 
   cancelTrip: async (tripId, data = {}) => {
@@ -192,7 +244,20 @@ export const driverAPI = {
       body: JSON.stringify(data),
       credentials: "include",
     });
-    return await response.json();
+
+    const result = await response.json();
+
+    // Si la respuesta HTTP no es exitosa, lanzar error con el mensaje del servidor
+    if (!response.ok) {
+      const error = new Error(
+        result.message || result.error || `Error ${response.status}`
+      );
+      error.code = result.code || response.status;
+      error.response = result;
+      throw error;
+    }
+
+    return result;
   },
 
   getPauseReasons: async () => {

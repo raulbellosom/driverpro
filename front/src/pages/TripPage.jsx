@@ -45,6 +45,7 @@ const TripPage = () => {
         data,
       });
 
+      // Solo ejecutar estas acciones si NO hay error
       // Refresh trip data
       await refetchTrips();
       toast.success("Acción ejecutada exitosamente", { icon: "✅" });
@@ -55,8 +56,12 @@ const TripPage = () => {
       }
     } catch (error) {
       console.error("Error en acción del viaje:", error);
-      toast.error("Error al ejecutar la acción: " + error.message, {
+
+      // Mostrar el mensaje específico del servidor si está disponible
+      const errorMessage = error.message || "Error al ejecutar la acción";
+      toast.error(errorMessage, {
         icon: "❌",
+        duration: 5000, // Mostrar por más tiempo para errores importantes
       });
     }
   };
