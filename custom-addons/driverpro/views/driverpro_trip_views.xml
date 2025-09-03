@@ -106,7 +106,7 @@
                                 <field name="is_scheduled" readonly="state != 'draft'"/>
                                 <field name="scheduled_datetime" readonly="state != 'draft'" invisible="not is_scheduled" required="is_scheduled"/>
                                 <field name="scheduled_notification_sent" readonly="1" invisible="not is_scheduled or not scheduled_notification_sent"/>
-                                <button name="action_send_test_notification" type="object" string="Enviar Notificación de Prueba" class="btn-link" invisible="not is_scheduled or state not in ['draft', 'active']"/>
+                                <button name="action_send_test_notification" type="object" string="Enviar Recordatorio" class="btn-link" invisible="not is_scheduled or state not in ['draft', 'active']"/>
                             </group>
                         </group>
 
@@ -146,7 +146,7 @@
                                     </group>
                                     <group>
                                         <group>
-                                            <button name="action_send_test_notification" type="object" string="Enviar Notificación de Prueba" class="btn-warning" invisible="state != 'draft'" help="Enviar notificación de prueba al chofer"/>
+                                            <button name="action_send_test_notification" type="object" string="Enviar Recordatorio" class="btn-warning" invisible="state != 'draft'" help="Enviar recordatorio manual al chofer"/>
                                         </group>
                                     </group>
                                 </group>

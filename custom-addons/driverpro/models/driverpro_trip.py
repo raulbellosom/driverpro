@@ -3,6 +3,7 @@
 from odoo import models, fields, api, _
 from odoo.exceptions import ValidationError, UserError
 from datetime import datetime, timedelta
+import pytz
 
 
 class DriverproTrip(models.Model):
@@ -297,6 +298,32 @@ class DriverproTrip(models.Model):
         if not vals.get('name') or vals.get('name') in ('/', _('Nuevo'), 'New'):
             vals['name'] = self.env['ir.sequence'].next_by_code('driverpro.trip') or 'TRIP-000001'
         return super().create(vals)
+
+    def _convert_to_user_timezone(self, datetime_utc, user=None):
+        """Convierte datetime UTC a la zona horaria del usuario"""
+        if not datetime_utc:
+            return None
+        
+        try:
+            # Usar el usuario especificado o el usuario actual del driver
+            target_user = user or self.driver_id
+            if not target_user:
+                target_user = self.env.user
+            
+            # Obtener la zona horaria del usuario, por defecto México (UTC-6)
+            user_tz = target_user.tz or 'America/Mexico_City'
+            timezone = pytz.timezone(user_tz)
+            
+            # Convertir de UTC a la zona horaria del usuario
+            if datetime_utc.tzinfo is None:
+                # Si no tiene timezone info, asumir que es UTC
+                datetime_utc = pytz.UTC.localize(datetime_utc)
+            
+            local_dt = datetime_utc.astimezone(timezone)
+            return local_dt
+        except Exception:
+            # En caso de error, devolver la fecha original
+            return datetime_utc
 
     @api.model
     def get_driver_vehicle_info(self, driver_id):
@@ -828,6 +855,9 @@ class DriverproTrip(models.Model):
         if not self.driver_id or not self.scheduled_datetime:
             return
         
+        # Convertir fecha programada a zona horaria del chofer
+        scheduled_local = self._convert_to_user_timezone(self.scheduled_datetime)
+        
         time_diff = self.scheduled_datetime - fields.Datetime.now()
         minutes_left = int(time_diff.total_seconds() / 60)
         time_formatted = self._format_time_remaining(minutes_left)
@@ -865,7 +895,7 @@ class DriverproTrip(models.Model):
                 '⏰ <b>Tiempo restante:</b> %s<br/><br/>'
                 '💡 <i>Por favor, prepárate para el viaje.</i>'
             ) % (
-                self.scheduled_datetime.strftime('%d/%m/%Y %H:%M'),
+                scheduled_local.strftime('%d/%m/%Y %H:%M'),
                 self.origin or 'No especificado',
                 self.destination or 'No especificado',
                 self.passenger_count or 'No especificado',
@@ -891,7 +921,7 @@ class DriverproTrip(models.Model):
                 '<p>Saludos,<br/>Equipo DriverPro</p>'
             ) % (
                 self.driver_id.name,
-                self.scheduled_datetime.strftime('%d/%m/%Y %H:%M'),
+                scheduled_local.strftime('%d/%m/%Y %H:%M'),
                 self.origin or 'No especificado',
                 self.destination or 'No especificado', 
                 self.passenger_count or 'No especificado',
@@ -933,10 +963,10 @@ class DriverproTrip(models.Model):
                 self.exchange_rate = 20.0
 
     def action_send_test_notification(self):
-        """Envía una notificación de prueba al chofer"""
+        """Envía un recordatorio manual al chofer"""
         self.ensure_one()
         if not self.driver_id:
-            raise UserError(_('Debe seleccionar un chofer para enviar la notificación.'))
+            raise UserError(_('Debe seleccionar un chofer para enviar el recordatorio.'))
         
         self._send_driver_notification()
         
@@ -944,8 +974,8 @@ class DriverproTrip(models.Model):
             'type': 'ir.actions.client',
             'tag': 'display_notification',
             'params': {
-                'title': _('Notificación Enviada'),
-                'message': _('Se ha enviado una notificación de prueba a %s') % self.driver_id.name,
+                'title': _('Recordatorio Enviado'),
+                'message': _('Se ha enviado un recordatorio manual a %s') % self.driver_id.name,
                 'type': 'success',
             }
         }
