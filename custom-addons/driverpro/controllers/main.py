@@ -436,8 +436,9 @@ class DriverproAPIController(http.Controller):
             elif action == 'action_done':
                 trip.action_done()
             elif action == 'action_cancel':
-                refund_credit = data.get('refund_credit', False) if data else False
-                trip.action_cancel(refund_credit=refund_credit)
+                # Para el frontend de choferes, solo cancelar sin opciones de reembolso
+                # El reembolso se maneja desde la plataforma de Odoo
+                trip.action_cancel()
             else:
                 return self._json_response({
                     'error': f'Acción no válida: {action}',

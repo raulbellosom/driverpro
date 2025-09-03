@@ -15,6 +15,7 @@ import { driverAPI } from "../lib/api";
 
 const TripDetailView = ({ trip, onBack, onAction }) => {
   const [showPauseModal, setShowPauseModal] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
   const [selectedReasonId, setSelectedReasonId] = useState("");
   const [pauseNotes, setPauseNotes] = useState("");
   const [pauseReasons, setPauseReasons] = useState([]);
@@ -132,9 +133,12 @@ const TripDetailView = ({ trip, onBack, onAction }) => {
   };
 
   const handleCancelTrip = () => {
-    if (confirm("¿Estás seguro de que quieres cancelar este viaje?")) {
-      onAction({ action: "cancel", tripId: trip.id });
-    }
+    setShowCancelModal(true);
+  };
+
+  const handleConfirmCancel = () => {
+    onAction({ action: "cancel", tripId: trip.id });
+    setShowCancelModal(false);
   };
 
   return (
@@ -400,6 +404,45 @@ const TripDetailView = ({ trip, onBack, onAction }) => {
                 className="flex-1 bg-yellow-500 text-white py-2 px-4 rounded-lg hover:bg-yellow-600 transition-colors"
               >
                 Pausar
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Cancel Confirmation Modal */}
+      {showCancelModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-2xl p-6 max-w-sm w-full"
+          >
+            <div className="flex items-center justify-center w-12 h-12 bg-red-100 rounded-full mx-auto mb-4">
+              <AlertTriangle className="w-6 h-6 text-red-600" />
+            </div>
+
+            <h3 className="text-lg font-bold text-[#2a2a2a] mb-2 text-center">
+              Cancelar Viaje
+            </h3>
+
+            <p className="text-[#2a2a2a]/70 mb-6 text-center">
+              ¿Estás seguro de que quieres cancelar este viaje? Esta acción no
+              se puede deshacer.
+            </p>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowCancelModal(false)}
+                className="flex-1 bg-gray-200 text-[#2a2a2a] py-3 px-4 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+              >
+                No, Mantener
+              </button>
+              <button
+                onClick={handleConfirmCancel}
+                className="flex-1 bg-red-500 text-white py-3 px-4 rounded-lg hover:bg-red-600 transition-colors font-medium"
+              >
+                Sí, Cancelar
               </button>
             </div>
           </motion.div>
