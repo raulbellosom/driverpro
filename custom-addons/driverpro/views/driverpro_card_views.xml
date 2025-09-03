@@ -227,11 +227,12 @@
             <field name="name">driverpro.card.recharge.tree</field>
             <field name="model">driverpro.card.recharge</field>
             <field name="arch" type="xml">
-                <list string="Recargas de Tarjeta" decoration-info="state == 'draft'" decoration-success="state == 'confirmed'" decoration-muted="state == 'cancelled'">
+                <list string="Recargas de Tarjeta" decoration-info="state == 'draft'" decoration-success="state == 'confirmed'" decoration-danger="state == 'cancelled'">
                     <field name="name"/>
                     <field name="card_id"/>
                     <field name="recharge_date"/>
-                    <field name="amount" sum="Total (incluye borradores y canceladas)"/>
+                    <field name="amount"/>
+                    <field name="confirmed_amount" sum="Total Confirmado" invisible="1"/>
                     <field name="state"/>
                     <field name="invoice_number"/>
                     <field name="company_id" groups="base.group_multi_company"/>

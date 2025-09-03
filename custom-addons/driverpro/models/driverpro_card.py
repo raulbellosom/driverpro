@@ -212,6 +212,13 @@ class DriverproCardRecharge(models.Model):
         help="Cantidad de créditos a recargar"
     )
     
+    confirmed_amount = fields.Integer(
+        string='Monto Confirmado',
+        compute='_compute_confirmed_amount',
+        store=False,
+        help="Monto que cuenta para el total (solo si está confirmado)"
+    )
+    
     recharge_date = fields.Datetime(
         string='Fecha de Recarga',
         default=fields.Datetime.now,
@@ -381,6 +388,15 @@ class DriverproCardRecharge(models.Model):
                         'Solo los administradores pueden eliminar recargas canceladas. '
                         'Contacte a su administrador si necesita eliminar esta recarga.'))
         return super().unlink()
+
+    @api.depends('state', 'amount')
+    def _compute_confirmed_amount(self):
+        """Calcula el monto que cuenta para el total (solo confirmadas)"""
+        for recharge in self:
+            if recharge.state == 'confirmed':
+                recharge.confirmed_amount = recharge.amount
+            else:
+                recharge.confirmed_amount = 0
 
     def action_confirm(self):
         """Confirma la recarga y crea el movimiento"""

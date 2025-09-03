@@ -94,9 +94,10 @@
                             <group name="payment_info" string="Información de Pago">
                                 <field name="payment_method" readonly="state not in ['draft', 'active', 'paused']"/>
                                 <field name="amount_mxn" readonly="state not in ['draft', 'active', 'paused']"/>
-                                <field name="amount_usd" readonly="state not in ['draft', 'active', 'paused']"/>
-                                <field name="exchange_rate" readonly="state not in ['draft', 'active', 'paused']" invisible="amount_usd == 0"/>
-                                <field name="total_amount_mxn" readonly="1" string="Total MXN" decoration-bf="1" invisible="amount_mxn == 0 and amount_usd == 0"/>
+                                <field name="payment_in_usd" readonly="state not in ['draft', 'active', 'paused']"/>
+                                <field name="amount_usd" readonly="state not in ['draft', 'active', 'paused']" invisible="not payment_in_usd" required="payment_in_usd"/>
+                                <field name="exchange_rate" readonly="state not in ['draft', 'active', 'paused']" invisible="not payment_in_usd" required="payment_in_usd"/>
+                                <field name="total_amount_mxn" readonly="1" string="Total MXN" decoration-bf="1" invisible="amount_mxn == 0 and not payment_in_usd"/>
                                 <field name="payment_reference" readonly="state not in ['draft', 'active', 'paused']"/>
                             </group>
                             <group name="schedule_info" string="Programación de Cita">

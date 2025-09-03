@@ -119,6 +119,13 @@ class DriverproTrip(models.Model):
         ('other', 'Otro')
     ], string='Método de Pago')
     
+    # Control de moneda
+    payment_in_usd = fields.Boolean(
+        string='Pago en USD',
+        default=False,
+        help="Marcar si el pago incluye montos en dólares estadounidenses"
+    )
+    
     # Montos por moneda
     amount_mxn = fields.Float(
         string='Monto MXN',
@@ -136,7 +143,7 @@ class DriverproTrip(models.Model):
     exchange_rate = fields.Float(
         string='Tipo de Cambio',
         digits=(16, 4),
-        default=1.0,
+        default=20.0,
         help="Tipo de cambio USD a MXN (1 USD = X MXN)"
     )
     
@@ -274,12 +281,13 @@ class DriverproTrip(models.Model):
             else:
                 trip.card_credits_warning = f'Recargas disponibles: {trip.card_id.balance}'
 
-    @api.depends('amount_mxn', 'amount_usd', 'exchange_rate')
+    @api.depends('amount_mxn', 'amount_usd', 'exchange_rate', 'payment_in_usd')
     def _compute_total_amount(self):
         """Calcula el total en MXN"""
         for trip in self:
-            total_mxn = trip.amount_mxn
-            if trip.amount_usd > 0:
+            total_mxn = trip.amount_mxn or 0.0
+            # Solo agregar USD al total si está marcado el checkbox y hay monto USD
+            if trip.payment_in_usd and trip.amount_usd > 0 and trip.exchange_rate > 0:
                 total_mxn += trip.amount_usd * trip.exchange_rate
             trip.total_amount_mxn = total_mxn
 
@@ -590,16 +598,24 @@ class DriverproTrip(models.Model):
             if trip.scheduled_datetime and trip.scheduled_datetime <= fields.Datetime.now():
                 raise ValidationError(_('La fecha de la cita debe ser en el futuro.'))
 
-    @api.constrains('amount_mxn', 'amount_usd')
+    @api.constrains('amount_mxn', 'amount_usd', 'payment_in_usd')
     def _check_amounts(self):
         """Valida que al menos un monto sea mayor a cero"""
         for trip in self:
             if trip.amount_mxn < 0 or trip.amount_usd < 0:
                 raise ValidationError(_('Los montos no pueden ser negativos.'))
+                
+            # Si está marcado pago en USD, debe tener monto USD
+            if trip.payment_in_usd and trip.amount_usd <= 0:
+                raise ValidationError(_('Si marca "Pago en USD", debe especificar un monto en USD mayor a cero.'))
 
-    @api.constrains('exchange_rate')
+    @api.constrains('exchange_rate', 'payment_in_usd')
     def _check_exchange_rate(self):
-        """Valida que el tipo de cambio sea positivo"""
+        """Valida que el tipo de cambio sea positivo cuando se usa USD"""
+        for trip in self:
+            # Solo validar tipo de cambio si se está usando USD
+            if trip.payment_in_usd and trip.exchange_rate <= 0:
+                raise ValidationError(_('El tipo de cambio debe ser mayor a cero cuando se usa pago en USD.'))
         for trip in self:
             if trip.exchange_rate <= 0:
                 raise ValidationError(_('El tipo de cambio debe ser mayor a cero.'))
@@ -904,6 +920,17 @@ class DriverproTrip(models.Model):
         if not self.is_scheduled:
             self.scheduled_datetime = False
             self.scheduled_notification_sent = False
+
+    @api.onchange('payment_in_usd')
+    def _onchange_payment_in_usd(self):
+        """Limpiar campos USD si no está marcado el checkbox"""
+        if not self.payment_in_usd:
+            self.amount_usd = 0.0
+            self.exchange_rate = 20.0
+        else:
+            # Establecer tipo de cambio por defecto si se activa USD
+            if not self.exchange_rate or self.exchange_rate <= 0:
+                self.exchange_rate = 20.0
 
     def action_send_test_notification(self):
         """Envía una notificación de prueba al chofer"""
