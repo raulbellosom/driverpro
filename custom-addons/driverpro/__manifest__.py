@@ -1,9 +1,9 @@
 {
-    'name': 'DriverPro',
+    'name': 'Driver Pro',
     'version': '18.0.2.0.0',
     'summary': 'Gestión avanzada de flotillas de transporte',
     'description': """
-        DriverPro - Módulo de gestión de flotillas
+        Driver Pro - Módulo de gestión de flotillas
         ==========================================
         
         Este módulo extiende las capacidades del módulo Fleet de Odoo para proporcionar:

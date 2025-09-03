@@ -7,7 +7,7 @@
             <field name="name">driverpro.card.tree</field>
             <field name="model">driverpro.card</field>
             <field name="arch" type="xml">
-                <list string="Tarjetas DriverPro" decoration-muted="not active">
+                <list string="Tarjetas Driver Pro" decoration-muted="not active">
                     <field name="name"/>
                     <field name="vehicle_id"/>
                     <field name="balance" sum="Total Saldo"/>
@@ -26,7 +26,7 @@
             <field name="name">driverpro.card.form</field>
             <field name="model">driverpro.card</field>
             <field name="arch" type="xml">
-                <form string="Tarjeta DriverPro">
+                <form string="Tarjeta Driver Pro">
                     <header>
                         <button name="action_view_recharges" type="object" string="Ver Recargas" class="oe_highlight" groups="driverpro.group_driverpro_user,driverpro.group_driverpro_manager"/>
                     </header>
@@ -111,7 +111,7 @@
             <field name="name">driverpro.card.kanban</field>
             <field name="model">driverpro.card</field>
             <field name="arch" type="xml">
-                <kanban string="Tarjetas DriverPro">
+                <kanban string="Tarjetas Driver Pro">
                     <field name="name"/>
                     <field name="vehicle_id"/>
                     <field name="balance"/>
@@ -207,13 +207,13 @@
 
         <!-- Acción para Tarjetas -->
         <record id="action_driverpro_card" model="ir.actions.act_window">
-            <field name="name">Tarjetas DriverPro</field>
+            <field name="name">Tarjetas Driver Pro</field>
             <field name="res_model">driverpro.card</field>
             <field name="view_mode">kanban,list,form</field>
             <field name="context">{'search_default_active': 1}</field>
             <field name="help" type="html">
                 <p class="o_view_nocontent_smiling_face">
-                    ¡Crea tu primera tarjeta DriverPro!
+                    ¡Crea tu primera tarjeta Driver Pro!
                 </p>
                 <p>
                     Las tarjetas están ligadas a vehículos y contienen créditos 

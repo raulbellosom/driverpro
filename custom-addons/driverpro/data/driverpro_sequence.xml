@@ -4,7 +4,7 @@
 
         <!-- Secuencia para Viajes -->
         <record id="seq_driverpro_trip" model="ir.sequence">
-            <field name="name">Viajes DriverPro</field>
+            <field name="name">Viajes Driver Pro</field>
             <field name="code">driverpro.trip</field>
             <field name="prefix">TRIP-</field>
             <field name="suffix"></field>

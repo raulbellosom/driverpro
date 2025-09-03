@@ -7,7 +7,7 @@
             <field name="name">driverpro.trip.tree</field>
             <field name="model">driverpro.trip</field>
             <field name="arch" type="xml">
-                <list string="Viajes DriverPro" decoration-info="state == 'draft'" decoration-warning="state == 'paused'" decoration-success="state == 'active'" decoration-muted="state == 'cancelled'">
+                <list string="Viajes Driver Pro" decoration-info="state == 'draft'" decoration-warning="state == 'paused'" decoration-success="state == 'active'" decoration-muted="state == 'cancelled'">
                     <field name="name"/>
                     <field name="driver_id"/>
                     <field name="vehicle_id"/>
@@ -27,7 +27,7 @@
             <field name="name">driverpro.trip.form</field>
             <field name="model">driverpro.trip</field>
             <field name="arch" type="xml">
-                <form string="Viaje DriverPro">
+                <form string="Viaje Driver Pro">
                     <header>
                         <button name="action_start" type="object" string="Iniciar Viaje" class="oe_highlight" invisible="state != 'draft'"/>
                         <button name="action_pause" type="object" string="Pausar" invisible="state != 'active'"/>
@@ -231,7 +231,7 @@
 
         <!-- Acción para Viajes -->
         <record id="action_driverpro_trip" model="ir.actions.act_window">
-            <field name="name">Viajes DriverPro</field>
+            <field name="name">Viajes Driver Pro</field>
             <field name="res_model">driverpro.trip</field>
             <field name="view_mode">kanban,list,form</field>
             <field name="context">{'search_default_today': 1}</field>

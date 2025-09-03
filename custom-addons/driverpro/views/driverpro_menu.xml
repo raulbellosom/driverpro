@@ -3,12 +3,12 @@
     <data>
 
         <!-- Menú Principal -->
-        <menuitem id="driverpro_menu_root" name="DriverPro" sequence="20" groups="driverpro.group_driverpro_user,driverpro.group_driverpro_manager" web_icon="driverpro,static/description/icon.png"/>
+        <menuitem id="driverpro_menu_root" name="Driver Pro" sequence="20" groups="driverpro.group_driverpro_user,driverpro.group_driverpro_manager" web_icon="driverpro,static/description/icon_2.png"/>
 
         <!-- Sección de Operaciones -->
-        <menuitem id="driverpro_menu_operations" name="Operaciones" parent="driverpro_menu_root" sequence="10" groups="driverpro.group_driverpro_user,driverpro.group_driverpro_manager"/>
+        <!-- <menuitem id="driverpro_menu_operations" name="Operaciones" parent="driverpro_menu_root" sequence="10" groups="driverpro.group_driverpro_user,driverpro.group_driverpro_manager"/> -->
 
-        <menuitem id="driverpro_menu_trips" name="Viajes" parent="driverpro_menu_operations" sequence="10" action="action_driverpro_trip" groups="driverpro.group_driverpro_user,driverpro.group_driverpro_manager"/>
+        <menuitem id="driverpro_menu_trips" name="Viajes" parent="driverpro_menu_root" sequence="10" action="action_driverpro_trip" groups="driverpro.group_driverpro_user,driverpro.group_driverpro_manager"/>
 
         <!-- Sección de Tarjetas -->
         <menuitem id="driverpro_menu_cards" name="Tarjetas" parent="driverpro_menu_root" sequence="20" groups="driverpro.group_driverpro_user,driverpro.group_driverpro_manager"/>

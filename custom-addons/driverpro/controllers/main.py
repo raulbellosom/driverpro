@@ -383,5 +383,5 @@ class DriverproAPIController(http.Controller):
         return self._json_response({
             'status': 'ok',
             'timestamp': datetime.now().isoformat(),
-            'service': 'DriverPro API'
+            'service': 'Driver Pro API'
         })

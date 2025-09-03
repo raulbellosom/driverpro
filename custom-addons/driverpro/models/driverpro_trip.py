@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 class DriverproTrip(models.Model):
     """Viajes realizados por choferes"""
     _name = 'driverpro.trip'
-    _description = 'Viaje DriverPro'
+    _description = 'Viaje Driver Pro'
     _inherit = ['mail.thread', 'mail.activity.mixin']
     _order = 'create_date desc'
 
@@ -284,7 +284,7 @@ class DriverproTrip(models.Model):
                         'warning': {
                             'title': _('Advertencia'),
                             'message': _('El vehículo %s no tiene una tarjeta activa asignada. '
-                                       'Necesitará crear una tarjeta en: DriverPro > Tarjetas > Crear') % vehicle.name
+                                       'Necesitará crear una tarjeta en: Driver Pro > Tarjetas > Crear') % vehicle.name
                         }
                     }
             else:

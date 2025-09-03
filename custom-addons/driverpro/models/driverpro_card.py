@@ -7,7 +7,7 @@ from odoo.exceptions import ValidationError, UserError
 class DriverproCard(models.Model):
     """Tarjeta de recarga ligada a vehículo"""
     _name = 'driverpro.card'
-    _description = 'Tarjeta DriverPro'
+    _description = 'Tarjeta Driver Pro'
     _inherit = ['mail.thread', 'mail.activity.mixin']
     _order = 'name desc'
 

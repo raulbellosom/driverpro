@@ -4,23 +4,23 @@
 
         <!-- Categorías de Aplicación -->
         <record id="module_category_driverpro" model="ir.module.category">
-            <field name="name">DriverPro</field>
-            <field name="description">Gestión de flotillas DriverPro</field>
+            <field name="name">Driver Pro</field>
+            <field name="description">Gestión de flotillas Driver Pro</field>
             <field name="sequence">20</field>
         </record>
 
         <!-- Grupos de Usuario -->
         <record id="group_driverpro_user" model="res.groups">
-            <field name="name">DriverPro User</field>
+            <field name="name">Driver Pro User</field>
             <field name="category_id" ref="module_category_driverpro"/>
-            <field name="comment">Usuario interno de DriverPro</field>
+            <field name="comment">Usuario interno de Driver Pro</field>
             <field name="implied_ids" eval="[(4, ref('fleet.fleet_group_user'))]"/>
         </record>
 
         <record id="group_driverpro_manager" model="res.groups">
-            <field name="name">DriverPro Manager</field>
+            <field name="name">Driver Pro Manager</field>
             <field name="category_id" ref="module_category_driverpro"/>
-            <field name="comment">Acceso completo a DriverPro</field>
+            <field name="comment">Acceso completo a Driver Pro</field>
             <field name="implied_ids" eval="[(4, ref('group_driverpro_user'))]"/>
         </record>
 
@@ -35,7 +35,7 @@
 
         <!-- Tarjetas -->
         <record id="driverpro_card_rule_manager" model="ir.rule">
-            <field name="name">DriverPro Card Manager Rule</field>
+            <field name="name">Driver Pro Card Manager Rule</field>
             <field name="model_id" ref="model_driverpro_card"/>
             <field name="groups" eval="[(4, ref('group_driverpro_manager'))]"/>
             <field name="perm_read" eval="True"/>
@@ -46,7 +46,7 @@
         </record>
 
         <record id="driverpro_card_rule_user" model="ir.rule">
-            <field name="name">DriverPro Card User Rule</field>
+            <field name="name">Driver Pro Card User Rule</field>
             <field name="model_id" ref="model_driverpro_card"/>
             <field name="groups" eval="[(4, ref('group_driverpro_user'))]"/>
             <field name="perm_read" eval="True"/>
@@ -58,7 +58,7 @@
 
         <!-- Recargas -->
         <record id="driverpro_card_recharge_rule_manager" model="ir.rule">
-            <field name="name">DriverPro Card Recharge Manager Rule</field>
+            <field name="name">Driver Pro Card Recharge Manager Rule</field>
             <field name="model_id" ref="model_driverpro_card_recharge"/>
             <field name="groups" eval="[(4, ref('group_driverpro_manager'))]"/>
             <field name="perm_read" eval="True"/>
@@ -69,7 +69,7 @@
         </record>
 
         <record id="driverpro_card_recharge_rule_user" model="ir.rule">
-            <field name="name">DriverPro Card Recharge User Rule</field>
+            <field name="name">Driver Pro Card Recharge User Rule</field>
             <field name="model_id" ref="model_driverpro_card_recharge"/>
             <field name="groups" eval="[(4, ref('group_driverpro_user'))]"/>
             <field name="perm_read" eval="True"/>
@@ -81,7 +81,7 @@
 
         <!-- Movimientos -->
         <record id="driverpro_card_movement_rule_all" model="ir.rule">
-            <field name="name">DriverPro Card Movement All Rule</field>
+            <field name="name">Driver Pro Card Movement All Rule</field>
             <field name="model_id" ref="model_driverpro_card_movement"/>
             <field name="groups" eval="[(4, ref('group_driverpro_manager')), (4, ref('group_driverpro_user'))]"/>
             <field name="perm_read" eval="True"/>
@@ -94,7 +94,7 @@
         <!-- Asignaciones - Deshabilitado en v2.0.0 - Se maneja directamente con Fleet -->
         <!-- 
         <record id="driverpro_assignment_rule_manager" model="ir.rule">
-            <field name="name">DriverPro Assignment Manager Rule</field>
+            <field name="name">Driver Pro Assignment Manager Rule</field>
             <field name="model_id" ref="model_driverpro_assignment"/>
             <field name="groups" eval="[(4, ref('group_driverpro_manager'))]"/>
             <field name="perm_read" eval="True"/>
@@ -105,7 +105,7 @@
         </record>
 
         <record id="driverpro_assignment_rule_user" model="ir.rule">
-            <field name="name">DriverPro Assignment User Rule</field>
+            <field name="name">Driver Pro Assignment User Rule</field>
             <field name="model_id" ref="model_driverpro_assignment"/>
             <field name="groups" eval="[(4, ref('group_driverpro_user'))]"/>
             <field name="perm_read" eval="True"/>
@@ -116,7 +116,7 @@
         </record>
 
         <record id="driverpro_assignment_rule_driver" model="ir.rule">
-            <field name="name">DriverPro Assignment Driver Rule</field>
+            <field name="name">Driver Pro Assignment Driver Rule</field>
             <field name="model_id" ref="model_driverpro_assignment"/>
             <field name="groups" eval="[(4, ref('group_portal_driver'))]"/>
             <field name="perm_read" eval="True"/>
@@ -129,7 +129,7 @@
 
         <!-- Viajes -->
         <record id="driverpro_trip_rule_manager" model="ir.rule">
-            <field name="name">DriverPro Trip Manager Rule</field>
+            <field name="name">Driver Pro Trip Manager Rule</field>
             <field name="model_id" ref="model_driverpro_trip"/>
             <field name="groups" eval="[(4, ref('group_driverpro_manager'))]"/>
             <field name="perm_read" eval="True"/>
@@ -140,7 +140,7 @@
         </record>
 
         <record id="driverpro_trip_rule_user" model="ir.rule">
-            <field name="name">DriverPro Trip User Rule</field>
+            <field name="name">Driver Pro Trip User Rule</field>
             <field name="model_id" ref="model_driverpro_trip"/>
             <field name="groups" eval="[(4, ref('group_driverpro_user'))]"/>
             <field name="perm_read" eval="True"/>
@@ -151,7 +151,7 @@
         </record>
 
         <record id="driverpro_trip_rule_driver" model="ir.rule">
-            <field name="name">DriverPro Trip Driver Rule</field>
+            <field name="name">Driver Pro Trip Driver Rule</field>
             <field name="model_id" ref="model_driverpro_trip"/>
             <field name="groups" eval="[(4, ref('group_portal_driver'))]"/>
             <field name="perm_read" eval="True"/>
@@ -163,7 +163,7 @@
 
         <!-- Pausas -->
         <record id="driverpro_trip_pause_rule_all" model="ir.rule">
-            <field name="name">DriverPro Trip Pause All Rule</field>
+            <field name="name">Driver Pro Trip Pause All Rule</field>
             <field name="model_id" ref="model_driverpro_trip_pause"/>
             <field name="groups" eval="[(4, ref('group_driverpro_manager')), (4, ref('group_driverpro_user'))]"/>
             <field name="perm_read" eval="True"/>
@@ -174,7 +174,7 @@
         </record>
 
         <record id="driverpro_trip_pause_rule_driver" model="ir.rule">
-            <field name="name">DriverPro Trip Pause Driver Rule</field>
+            <field name="name">Driver Pro Trip Pause Driver Rule</field>
             <field name="model_id" ref="model_driverpro_trip_pause"/>
             <field name="groups" eval="[(4, ref('group_portal_driver'))]"/>
             <field name="perm_read" eval="True"/>
@@ -186,7 +186,7 @@
 
         <!-- Motivos de Pausa -->
         <record id="driverpro_pause_reason_rule_all" model="ir.rule">
-            <field name="name">DriverPro Pause Reason All Rule</field>
+            <field name="name">Driver Pro Pause Reason All Rule</field>
             <field name="model_id" ref="model_driverpro_pause_reason"/>
             <field name="groups" eval="[(4, ref('group_driverpro_manager')), (4, ref('group_driverpro_user')), (4, ref('group_portal_driver'))]"/>
             <field name="perm_read" eval="True"/>

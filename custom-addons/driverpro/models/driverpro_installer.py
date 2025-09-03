@@ -7,9 +7,9 @@ _logger = logging.getLogger(__name__)
 
 
 class DriverproInstaller(models.TransientModel):
-    """Asistente de configuración post-instalación DriverPro v2.0"""
+    """Asistente de configuración post-instalación Driver Pro v2.0"""
     _name = 'driverpro.installer'
-    _description = 'Configuración DriverPro v2.0'
+    _description = 'Configuración Driver Pro v2.0'
 
     @api.model
     def check_fleet_configuration(self):
@@ -74,7 +74,7 @@ class DriverproInstaller(models.TransientModel):
                 'type': 'warning', 
                 'title': _('Vehículos sin Tarjeta'),
                 'message': _('Se encontraron %d vehículos con conductor pero sin tarjeta activa. '
-                           'Es necesario asignar tarjetas en DriverPro > Tarjetas.') % len(vehicles_without_card),
+                           'Es necesario asignar tarjetas en Driver Pro > Tarjetas.') % len(vehicles_without_card),
                 'vehicles': [v.name for v in vehicles_without_card]
             })
         
@@ -108,14 +108,14 @@ class DriverproInstaller(models.TransientModel):
                 _('2. Asigna conductores (contactos) a todos los vehículos activos'),
                 _('3. Crea usuarios para los conductores si no existen: Configuración > Usuarios y Compañías > Usuarios'),
                 _('4. Vincula los usuarios con los contactos de los conductores'),
-                _('5. Crea tarjetas activas para todos los vehículos en DriverPro > Tarjetas'),
+                _('5. Crea tarjetas activas para todos los vehículos en Driver Pro > Tarjetas'),
                 _('6. Verifica que las tarjetas tengan créditos suficientes'),
                 _('7. Prueba crear un viaje para validar la configuración')
             ])
         else:
             report['recommendations'].extend([
                 _('✅ La configuración está completa'),
-                _('✅ Puedes comenzar a crear viajes en DriverPro > Operaciones > Viajes'),
+                _('✅ Puedes comenzar a crear viajes en Driver Pro > Operaciones > Viajes'),
                 _('💡 Tip: Al seleccionar un chofer (usuario), el vehículo y tarjeta se asignarán automáticamente'),
                 _('📋 Nota: El chofer debe ser un usuario vinculado al contacto del conductor en Fleet')
             ])
