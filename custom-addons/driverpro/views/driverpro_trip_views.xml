@@ -53,6 +53,8 @@
                         </div>
 
                         <widget name="web_ribbon" title="Pausado" bg_color="bg-warning" invisible="is_paused == False"/>
+                        <widget name="web_ribbon" title="Finalizado" bg_color="bg-success" invisible="state != 'done'"/>
+                        <widget name="web_ribbon" title="Cancelado" bg_color="bg-danger" invisible="state != 'cancelled'"/>
 
                         <div class="oe_button_box" name="button_box">
                             <button name="action_view_attachments" type="object" class="oe_stat_button" icon="fa-paperclip">

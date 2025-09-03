@@ -82,16 +82,6 @@
                                     </list>
                                 </field>
                             </page>
-                            <page string="Historial de Asignaciones" name="assignments">
-                                <field name="assignment_ids" readonly="1">
-                                    <list string="Asignaciones">
-                                        <field name="vehicle_id"/>
-                                        <field name="date_start"/>
-                                        <field name="date_end"/>
-                                        <field name="active"/>
-                                    </list>
-                                </field>
-                            </page>
                             <page string="Notas" name="notes">
                                 <field name="notes" placeholder="Notas adicionales sobre la tarjeta..."/>
                             </page>
