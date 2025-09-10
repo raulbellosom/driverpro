@@ -7,7 +7,7 @@
             <field name="name">driverpro.trip.tree</field>
             <field name="model">driverpro.trip</field>
             <field name="arch" type="xml">
-                <list string="Viajes Driver Pro" decoration-info="state == 'draft'" decoration-warning="state == 'paused'" decoration-success="state == 'active'" decoration-muted="state == 'cancelled'">
+                <list string="Viajes Driver Pro" decoration-info="state == 'draft'" decoration-primary="state == 'empty'" decoration-warning="state == 'paused'" decoration-success="state == 'active'" decoration-muted="state == 'cancelled'">
                     <field name="name"/>
                     <field name="driver_id"/>
                     <field name="vehicle_id"/>
@@ -15,6 +15,9 @@
                     <field name="card_available_credits" decoration-danger="card_available_credits &lt;= 0"/>
                     <field name="origin"/>
                     <field name="destination"/>
+                    <field name="is_recharge_trip" string="Con Recarga" widget="boolean_toggle"/>
+                    <field name="is_empty_trip" string="Vacío" widget="boolean_toggle"/>
+                    <field name="empty_time_remaining" string="Tiempo Rest." decoration-danger="empty_time_remaining &lt;= 5" decoration-warning="empty_time_remaining &lt;= 15" invisible="state != 'empty'"/>
                     <field name="is_scheduled" string="Programado"/>
                     <field name="scheduled_datetime" string="Fecha Cita"/>
                     <field name="start_datetime"/>
@@ -37,13 +40,21 @@
             <field name="arch" type="xml">
                 <form string="Viaje Driver Pro">
                     <header>
+                        <!-- Botones para viajes regulares -->
                         <button name="action_start" type="object" string="Iniciar Viaje" class="oe_highlight" invisible="state != 'draft' or not id" help="Iniciar el viaje y consumir una recarga de la tarjeta."/>
+
+                        <!-- Botones para viajes vacíos -->
+                        <button name="action_start_empty" type="object" string="Iniciar Viaje Vacío" class="btn-primary" invisible="state != 'draft' or not id" help="Iniciar búsqueda de clientes en aeropuerto/zona."/>
+                        <button name="action_convert_empty_to_active" type="object" string="Cliente Encontrado" class="oe_highlight" invisible="state != 'empty'" help="Convertir a viaje activo cuando encuentra cliente."/>
+                        <button name="action_cancel_empty" type="object" string="Cancelar Búsqueda" invisible="state != 'empty'" help="Cancelar viaje vacío."/>
+
+                        <!-- Botones comunes -->
                         <button name="action_pause" type="object" string="Pausar" invisible="state != 'active'"/>
                         <button name="action_resume" type="object" string="Reanudar" class="oe_highlight" invisible="state != 'paused'"/>
                         <button name="action_done" type="object" string="Finalizar" class="oe_highlight" invisible="state not in ['active', 'paused']"/>
                         <button name="action_cancel" type="object" string="Cancelar" invisible="state not in ['draft', 'active', 'paused']"/>
                         <button name="action_refund_credit" type="object" string="Recuperar Recarga" class="btn-warning" invisible="state != 'cancelled' or not credit_consumed or credit_refunded" confirm="¿Está seguro de que desea recuperar la recarga de este viaje cancelado? Esta acción no se puede deshacer." help="Recuperar la recarga consumida por este viaje cancelado."/>
-                        <field name="state" widget="statusbar" statusbar_visible="draft,active,paused,done"/>
+                        <field name="state" widget="statusbar" statusbar_visible="draft,empty,active,paused,done"/>
                     </header>
                     <sheet>
                         <div class="oe_button_box" name="button_box">
@@ -73,6 +84,7 @@
                                 <field name="driver_id" options="{'no_create': True}" readonly="state != 'draft'" help="Selecciona el chofer que realizará el viaje. El vehículo se asignará automáticamente."/>
                                 <field name="vehicle_id" options="{'no_create': True}" readonly="state != 'draft'" help="Vehículo asignado automáticamente basado en el chofer seleccionado en Fleet."/>
                                 <field name="card_id" readonly="state != 'draft'" help="Tarjeta asignada automáticamente al vehículo."/>
+                                <field name="is_recharge_trip" readonly="state != 'draft'" widget="boolean_toggle" help="Marcar si este viaje requiere consumo de recarga (origen en zona controlada)"/>
                                 <field name="card_available_credits" readonly="1" invisible="card_id == False" decoration-danger="card_available_credits &lt;= 0" decoration-warning="card_available_credits &lt;= 5" decoration-success="card_available_credits &gt; 5" help="Número de recargas disponibles en la tarjeta. Se necesita al menos 1 recarga para iniciar el viaje."/>
                                 <div class="alert alert-warning" role="alert" invisible="not card_id or card_available_credits &gt; 0">
                                     <i class="fa fa-exclamation-triangle"/>
@@ -82,6 +94,7 @@
                                 <field name="company_id" groups="base.group_multi_company"/>
                             </group>
                             <group name="trip_info" string="Destinos y Pasajeros">
+                                <field name="client_name" readonly="state not in ['draft', 'active', 'paused']" invisible="state != 'active' or not is_empty_trip"/>
                                 <field name="origin" readonly="state not in ['draft', 'active', 'paused']"/>
                                 <field name="destination" readonly="state not in ['draft', 'active', 'paused']"/>
                                 <field name="passenger_count" readonly="state not in ['draft', 'active', 'paused']"/>
@@ -89,6 +102,21 @@
                                 <field name="consumed_credits" readonly="1" invisible="consumed_credits == 0"/>
                                 <field name="credit_consumed" readonly="1" invisible="not credit_consumed"/>
                                 <field name="credit_refunded" readonly="1" invisible="not credit_refunded"/>
+                            </group>
+                            <group name="empty_trip_info" string="Viaje Vacío (Búsqueda)" invisible="state != 'empty'">
+                                <field name="is_empty_trip" readonly="1" widget="boolean_toggle"/>
+                                <field name="empty_wait_limit_minutes" readonly="state != 'empty'"/>
+                                <field name="empty_started_at" readonly="1"/>
+                                <field name="empty_time_remaining" readonly="1" decoration-danger="empty_time_remaining &lt;= 5" decoration-warning="empty_time_remaining &lt;= 15" decoration-success="empty_time_remaining &gt; 15"/>
+                                <div class="alert alert-warning" role="alert" invisible="empty_time_remaining == False or empty_time_remaining &gt; 5">
+                                    <i class="fa fa-clock-o"/>
+                                    <strong>¡Tiempo casi agotado!</strong> El viaje vacío se cancelará automáticamente en <field name="empty_time_remaining" nolabel="1"/>
+ minutos.
+                                </div>
+                                <div class="alert alert-info" role="alert" invisible="state != 'empty'">
+                                    <i class="fa fa-info-circle"/>
+                                    <strong>Viaje vacío activo:</strong> El chofer está buscando clientes. Use "Cliente Encontrado" cuando tenga un pasajero.
+                                </div>
                             </group>
                         </group>
 

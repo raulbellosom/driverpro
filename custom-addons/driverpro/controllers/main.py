@@ -136,8 +136,8 @@ class DriverproAPIController(http.Controller):
             }, 500)
 
     @http.route('/driverpro/api/trips', type='http', auth='user', methods=['GET'], csrf=False)
-    def get_trips(self, state=None, limit=None, offset=None):
-        """Obtiene los viajes del chofer"""
+    def get_trips(self, state=None, page=None, limit=None, offset=None):
+        """Obtiene los viajes del chofer con paginación"""
         try:
             auth_result = self._authenticate_driver()
             if 'error' in auth_result:
@@ -145,20 +145,35 @@ class DriverproAPIController(http.Controller):
 
             user_id = auth_result['user_id']
 
+            # Parámetros de paginación
+            try:
+                if page:
+                    page = int(page)
+                    limit = int(limit) if limit else 10
+                    offset = (page - 1) * limit
+                else:
+                    limit = int(limit) if limit else 50
+                    offset = int(offset) if offset else 0
+            except ValueError:
+                return self._json_response({
+                    'error': 'Parámetros de paginación deben ser números enteros',
+                    'code': 400
+                }, 400)
+
+            # Filtro de fecha: última semana para mejor rendimiento
+            from datetime import datetime, timedelta
+            week_ago = datetime.now() - timedelta(days=7)
+
             # Construir dominio
-            domain = [('driver_id', '=', user_id)]
+            domain = [
+                ('driver_id', '=', user_id),
+                ('create_date', '>=', week_ago.strftime('%Y-%m-%d %H:%M:%S'))
+            ]
             if state:
                 domain.append(('state', '=', state))
 
-            # Convertir parámetros
-            try:
-                limit = int(limit) if limit else 50
-                offset = int(offset) if offset else 0
-            except ValueError:
-                return self._json_response({
-                    'error': 'Parámetros limit/offset deben ser números enteros',
-                    'code': 400
-                }, 400)
+            # Contar total
+            total_count = request.env['driverpro.trip'].search_count(domain)
 
             # Buscar viajes
             trips = request.env['driverpro.trip'].search(
@@ -213,8 +228,17 @@ class DriverproAPIController(http.Controller):
             return self._json_response({
                 'success': True,
                 'data': trips_data,
-                'count': len(trips_data),
-                'total': request.env['driverpro.trip'].search_count(domain)
+                'pagination': {
+                    'page': page if page else 1,
+                    'limit': limit,
+                    'total': total_count,
+                    'pages': (total_count + limit - 1) // limit  # Ceiling division
+                } if page else {
+                    'count': len(trips_data),
+                    'total': total_count,
+                    'limit': limit,
+                    'offset': offset
+                }
             })
 
         except Exception as e:
@@ -258,15 +282,27 @@ class DriverproAPIController(http.Controller):
                     data['payment_in_usd'] = data['payment_in_usd'].lower() == 'true'
                 if 'is_scheduled' in data:
                     data['is_scheduled'] = data['is_scheduled'].lower() == 'true'
+                if 'is_recharge_trip' in data:
+                    data['is_recharge_trip'] = data['is_recharge_trip'].lower() == 'true'
+                if 'empty_wait_limit_minutes' in data:
+                    data['empty_wait_limit_minutes'] = int(data['empty_wait_limit_minutes'])
 
-            # Validar campos requeridos
-            required_fields = ['origin', 'destination']
-            for field in required_fields:
-                if not data.get(field):
-                    return self._json_response({
-                        'error': f'Campo requerido: {field}',
-                        'code': 400
-                    }, 400)
+            # Validar campos requeridos según el tipo de viaje
+            trip_type = data.get('trip_type', 'normal')
+            
+            if trip_type == 'empty':
+                # Para viajes vacíos, no requerimos origen ni destino
+                if not data.get('empty_wait_limit_minutes'):
+                    data['empty_wait_limit_minutes'] = 60  # Default 1 hora
+            else:
+                # Para viajes normales y con recarga, requerimos origen y destino
+                required_fields = ['origin', 'destination']
+                for field in required_fields:
+                    if not data.get(field):
+                        return self._json_response({
+                            'error': f'Campo requerido: {field}',
+                            'code': 400
+                        }, 400)
 
             # Buscar vehículo asignado en Fleet
             vehicle = request.env['fleet.vehicle'].search([
@@ -290,10 +326,6 @@ class DriverproAPIController(http.Controller):
                 'driver_id': user_id,
                 'vehicle_id': vehicle.id,
                 'card_id': card.id if card else False,
-                'origin': data.get('origin'),
-                'destination': data.get('destination'),
-                'passenger_count': data.get('passenger_count', 1),
-                'passenger_reference': data.get('passenger_reference'),
                 'comments': data.get('comments'),
                 'payment_method': data.get('payment_method', 'cash'),
                 'amount_mxn': data.get('amount_mxn', 0.0),
@@ -305,7 +337,33 @@ class DriverproAPIController(http.Controller):
                 'payment_reference': data.get('payment_reference')
             }
 
+            # Agregar campos específicos según el tipo de viaje
+            if trip_type == 'empty':
+                trip_vals.update({
+                    'is_empty_trip': True,
+                    'empty_wait_limit_minutes': data.get('empty_wait_limit_minutes', 60),
+                    'origin': 'Búsqueda de clientes',
+                    'destination': 'Por definir',
+                    'passenger_count': 0,
+                })
+            else:
+                trip_vals.update({
+                    'origin': data.get('origin'),
+                    'destination': data.get('destination'),
+                    'passenger_count': data.get('passenger_count', 1),
+                    'passenger_reference': data.get('passenger_reference'),
+                    'is_recharge_trip': data.get('is_recharge_trip', trip_type == 'recharge'),
+                })
+
             trip = request.env['driverpro.trip'].create(trip_vals)
+
+            # Iniciar automáticamente los viajes vacíos
+            if trip_type == 'empty':
+                try:
+                    trip.action_start_empty()
+                except Exception as e:
+                    _logger.warning(f"Error iniciando viaje vacío automáticamente: {e}")
+                    # No fallar completamente, solo registrar el warning
 
             # Manejar archivos adjuntos si los hay
             files_uploaded = []
@@ -507,6 +565,355 @@ class DriverproAPIController(http.Controller):
             return self._json_response({
                 'error': 'Error interno del servidor',
                 'message': str(e),
+                'code': 500
+            }, 500)
+
+    @http.route('/driverpro/api/trips/<int:trip_id>/start-empty', type='http', auth='user', methods=['POST'], csrf=False)
+    def start_empty_trip(self, trip_id):
+        """Inicia un viaje vacío"""
+        return self._trip_action(trip_id, 'action_start_empty')
+
+    @http.route('/driverpro/api/trips/<int:trip_id>/convert-to-active', type='http', auth='user', methods=['POST'], csrf=False)
+    def convert_empty_to_active(self, trip_id):
+        """Convierte un viaje vacío a activo cuando encuentra cliente"""
+        # Obtener datos del cliente desde el request
+        data = {}
+        if request.httprequest.content_type and 'application/json' in request.httprequest.content_type:
+            try:
+                data = json.loads(request.httprequest.data.decode('utf-8'))
+            except:
+                data = {}
+        else:
+            data = dict(request.httprequest.form)
+        
+        try:
+            auth_result = self._authenticate_driver()
+            if 'error' in auth_result:
+                return self._json_response(auth_result, auth_result['code'])
+
+            user_id = auth_result['user_id']
+            
+            # Buscar el viaje
+            trip = request.env['driverpro.trip'].search([
+                ('id', '=', trip_id),
+                ('driver_id', '=', user_id)
+            ], limit=1)
+
+            if not trip:
+                return self._json_response({
+                    'error': 'Viaje no encontrado o no autorizado',
+                    'code': 404
+                }, 404)
+
+            # Preparar datos de conversión
+            trip_data = {}
+            
+            # Datos obligatorios
+            for field in ['client_name', 'origin', 'destination']:
+                if data.get(field):
+                    trip_data[field] = data[field]
+            
+            # Datos opcionales
+            if data.get('passenger_count'):
+                trip_data['passenger_count'] = int(data['passenger_count'])
+            if data.get('passenger_reference'):
+                trip_data['passenger_reference'] = data['passenger_reference']
+            if data.get('is_recharge_trip'):
+                trip_data['is_recharge_trip'] = bool(data['is_recharge_trip'])
+            if data.get('payment_method'):
+                trip_data['payment_method'] = data['payment_method']
+            if data.get('amount_mxn'):
+                trip_data['amount_mxn'] = float(data['amount_mxn'])
+
+            # Convertir a activo con todos los datos
+            trip.action_convert_empty_to_active(trip_data)
+
+            return self._json_response({
+                'success': True,
+                'data': {
+                    'trip_id': trip.id,
+                    'name': trip.name,
+                    'state': trip.state,
+                    'is_recharge_trip': trip.is_recharge_trip,
+                    'message': 'Viaje convertido exitosamente'
+                }
+            })
+
+        except Exception as e:
+            _logger.error(f"Error en convert_empty_to_active: {str(e)}")
+            return self._json_response({
+                'error': 'Error interno del servidor',
+                'message': str(e),
+                'code': 500
+            }, 500)
+
+    @http.route('/driverpro/api/trips/<int:trip_id>/cancel-empty', type='http', auth='user', methods=['POST'], csrf=False)
+    def cancel_empty_trip(self, trip_id):
+        """Cancela un viaje vacío"""
+        return self._trip_action(trip_id, 'action_cancel_empty')
+
+    @http.route('/driverpro/api/empty-trips/create', type='http', auth='user', methods=['POST'], csrf=False)
+    def create_empty_trip(self):
+        """Crea una nueva búsqueda de clientes"""
+        try:
+            auth_result = self._authenticate_driver()
+            if 'error' in auth_result:
+                return self._json_response(auth_result, auth_result['code'])
+
+            user_id = auth_result['user_id']
+            user = request.env.user
+            partner = user.partner_id
+
+            # Verificar si ya tiene una búsqueda activa
+            existing_search = request.env['driverpro.empty_trip'].search([
+                ('driver_id', '=', user_id),
+                ('state', '=', 'searching')
+            ], limit=1)
+
+            if existing_search:
+                return self._json_response({
+                    'error': 'Ya tienes una búsqueda activa',
+                    'message': 'Solo puedes tener una búsqueda activa a la vez. Cancela o convierte la búsqueda actual antes de crear una nueva.',
+                    'code': 409,
+                    'existing_search_id': existing_search.id,
+                    'existing_search_name': existing_search.name
+                }, 409)
+
+            # Obtener datos del request
+            if request.httprequest.content_type and 'application/json' in request.httprequest.content_type:
+                data = json.loads(request.httprequest.data.decode('utf-8'))
+            else:
+                data = dict(request.httprequest.form)
+                if 'wait_limit_minutes' in data:
+                    data['wait_limit_minutes'] = int(data['wait_limit_minutes'])
+
+            # Buscar vehículo asignado en Fleet
+            vehicle = request.env['fleet.vehicle'].search([
+                ('driver_id', '=', partner.id)
+            ], limit=1)
+
+            if not vehicle:
+                return self._json_response({
+                    'error': 'No hay vehículo asignado en Fleet',
+                    'code': 404
+                }, 404)
+
+            # Crear búsqueda
+            search_vals = {
+                'driver_id': user_id,
+                'vehicle_id': vehicle.id,
+                'search_location': data.get('search_location', 'Búsqueda de clientes'),
+                'wait_limit_minutes': data.get('wait_limit_minutes', 60),
+                'comments': data.get('comments', ''),
+            }
+
+            empty_trip = request.env['driverpro.empty_trip'].create(search_vals)
+
+            # Iniciar búsqueda automáticamente
+            empty_trip.action_start_search()
+
+            return self._json_response({
+                'success': True,
+                'data': {
+                    'search_id': empty_trip.id,
+                    'name': empty_trip.name,
+                    'state': empty_trip.state,
+                    'wait_limit_minutes': empty_trip.wait_limit_minutes,
+                    'time_remaining': empty_trip.time_remaining
+                }
+            })
+
+        except Exception as e:
+            _logger.error(f"Error en create_empty_trip: {str(e)}")
+            return self._json_response({
+                'error': 'Error interno del servidor',
+                'message': str(e),
+                'code': 500
+            }, 500)
+
+    @http.route('/driverpro/api/empty-trips', type='http', auth='user', methods=['GET'], csrf=False)
+    def get_empty_trips(self):
+        """Obtiene las búsquedas del chofer con paginación"""
+        try:
+            auth_result = self._authenticate_driver()
+            if 'error' in auth_result:
+                return self._json_response(auth_result, auth_result['code'])
+
+            user_id = auth_result['user_id']
+            
+            # Parámetros de paginación
+            page = int(request.httprequest.args.get('page', 1))
+            limit = int(request.httprequest.args.get('limit', 10))
+            offset = (page - 1) * limit
+
+            # Filtro de fecha: última semana
+            from datetime import datetime, timedelta
+            week_ago = datetime.now() - timedelta(days=7)
+
+            # Buscar búsquedas del chofer (última semana, paginado)
+            domain = [
+                ('driver_id', '=', user_id),
+                ('create_date', '>=', week_ago.strftime('%Y-%m-%d %H:%M:%S'))
+            ]
+            
+            # Contar total
+            total_count = request.env['driverpro.empty_trip'].search_count(domain)
+            
+            # Obtener registros paginados
+            empty_trips = request.env['driverpro.empty_trip'].search(
+                domain,
+                order='create_date desc',
+                limit=limit,
+                offset=offset
+            )
+
+            trips_data = []
+            for trip in empty_trips:
+                # Calcular tiempo restante con conversión de timezone
+                time_remaining = 0
+                wait_limit_time = None
+                
+                if trip.started_at and trip.wait_limit_minutes > 0:
+                    from datetime import datetime, timedelta
+                    # Convertir started_at a timezone del usuario
+                    started_local = self._convert_to_user_timezone(trip.started_at)
+                    started = started_local.replace(tzinfo=None)  # Para cálculo sin tz
+                    limit_time = started + timedelta(minutes=trip.wait_limit_minutes)
+                    wait_limit_time = limit_time.isoformat()
+                    
+                    if trip.state == 'searching':
+                        # Usar hora local del usuario para el cálculo
+                        user_tz = request.env.user.tz or 'America/Mexico_City'
+                        timezone = pytz.timezone(user_tz)
+                        now_local = datetime.now(timezone).replace(tzinfo=None)
+                        
+                        if now_local < limit_time:
+                            diff = limit_time - now_local
+                            time_remaining = int(diff.total_seconds() / 60)  # en minutos
+
+                # Datos del vehículo (reemplaza assignment_data)
+                vehicle_data = None
+                if trip.vehicle_id:
+                    vehicle_data = {
+                        'id': trip.vehicle_id.id,
+                        'license_plate': trip.vehicle_id.license_plate,
+                        'brand': trip.vehicle_id.brand_id.name if trip.vehicle_id.brand_id else '',
+                        'model': trip.vehicle_id.model_id.name if trip.vehicle_id.model_id else '',
+                    }
+
+                trips_data.append({
+                    'id': trip.id,
+                    'search_number': trip.name,
+                    'state': trip.state,
+                    'search_location': trip.search_location,
+                    'wait_limit_minutes': trip.wait_limit_minutes,
+                    'wait_limit_time': wait_limit_time,
+                    'time_remaining': time_remaining,
+                    'create_date': self._convert_to_user_timezone(trip.create_date).isoformat() if trip.create_date else None,
+                    'started_at': self._convert_to_user_timezone(trip.started_at).isoformat() if trip.started_at else None,
+                    'converted_at': self._convert_to_user_timezone(trip.converted_at).isoformat() if trip.converted_at else None,
+                    'cancelled_at': self._convert_to_user_timezone(trip.cancelled_at).isoformat() if trip.cancelled_at else None,
+                    'converted_trip_id': trip.converted_trip_id.id if trip.converted_trip_id else None,
+                    'converted_trip_name': trip.converted_trip_id.name if trip.converted_trip_id else None,
+                    'comments': getattr(trip, 'comments', ''),
+                    'vehicle_id': vehicle_data,
+                })
+
+            return self._json_response({
+                'success': True,
+                'data': trips_data,
+                'pagination': {
+                    'page': page,
+                    'limit': limit,
+                    'total': total_count,
+                    'pages': (total_count + limit - 1) // limit  # Ceiling division
+                }
+            })
+
+        except Exception as e:
+            _logger.error(f"Error en get_empty_trips: {str(e)}")
+            return self._json_response({
+                'error': 'Error interno del servidor',
+                'message': str(e),
+                'code': 500
+            }, 500)
+
+    @http.route('/driverpro/api/empty-trips/<int:search_id>/convert', type='http', auth='user', methods=['POST'], csrf=False)
+    def convert_empty_trip(self, search_id):
+        """Convierte búsqueda a viaje normal"""
+        try:
+            auth_result = self._authenticate_driver()
+            if 'error' in auth_result:
+                return self._json_response(auth_result, auth_result['code'])
+
+            user_id = auth_result['user_id']
+
+            # Buscar la búsqueda
+            empty_trip = request.env['driverpro.empty_trip'].search([
+                ('id', '=', search_id),
+                ('driver_id', '=', user_id)
+            ], limit=1)
+
+            if not empty_trip:
+                return self._json_response({
+                    'error': 'Búsqueda no encontrada',
+                    'code': 404
+                }, 404)
+
+            # Convertir a viaje normal
+            result = empty_trip.action_convert_to_trip()
+
+            return self._json_response({
+                'success': True,
+                'data': {
+                    'trip_id': result['res_id'],
+                    'message': 'Búsqueda convertida a viaje exitosamente'
+                }
+            })
+
+        except Exception as e:
+            _logger.error(f"Error en convert_empty_trip: {str(e)}")
+            return self._json_response({
+                'error': str(e),
+                'code': 500
+            }, 500)
+
+    @http.route('/driverpro/api/empty-trips/<int:search_id>/cancel', type='http', auth='user', methods=['POST'], csrf=False)
+    def cancel_empty_trip(self, search_id):
+        """Cancela una búsqueda"""
+        try:
+            auth_result = self._authenticate_driver()
+            if 'error' in auth_result:
+                return self._json_response(auth_result, auth_result['code'])
+
+            user_id = auth_result['user_id']
+
+            # Buscar la búsqueda
+            empty_trip = request.env['driverpro.empty_trip'].search([
+                ('id', '=', search_id),
+                ('driver_id', '=', user_id)
+            ], limit=1)
+
+            if not empty_trip:
+                return self._json_response({
+                    'error': 'Búsqueda no encontrada',
+                    'code': 404
+                }, 404)
+
+            # Cancelar búsqueda
+            empty_trip.action_cancel_search()
+
+            return self._json_response({
+                'success': True,
+                'data': {
+                    'message': 'Búsqueda cancelada exitosamente'
+                }
+            })
+
+        except Exception as e:
+            _logger.error(f"Error en cancel_empty_trip: {str(e)}")
+            return self._json_response({
+                'error': str(e),
                 'code': 500
             }, 500)
 

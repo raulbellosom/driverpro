@@ -45,5 +45,16 @@
             <field name="description">Otro motivo de pausa</field>
         </record>
 
+        <!-- Parámetros de Configuración para Zonas -->
+        <record id="config_zone_wait_limit" model="ir.config_parameter">
+            <field name="key">zone.wait_limit_minutes</field>
+            <field name="value">120</field>
+        </record>
+
+        <record id="config_zone_wait_alerts" model="ir.config_parameter">
+            <field name="key">zone.wait_alerts_minutes</field>
+            <field name="value">15,5</field>
+        </record>
+
     </data>
 </odoo>

@@ -9,6 +9,9 @@ import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import LoginPageSimple from "./pages/LoginPageSimple";
 import HomePage from "./pages/HomePage";
 import TripPage from "./pages/TripPage";
+import AppNavigation from "./components/AppNavigation";
+import { useState } from "react";
+import { Toaster } from "react-hot-toast";
 
 // Create a query client
 const queryClient = new QueryClient({
@@ -36,7 +39,11 @@ const ProtectedRoute = ({ children }) => {
     );
   }
 
-  return isAuthenticated ? children : <Navigate to="/login" replace />;
+  return isAuthenticated ? (
+    <div className="min-h-screen">{children}</div>
+  ) : (
+    <Navigate to="/login" replace />
+  );
 };
 
 // Public Route component (redirect if authenticated)
@@ -90,6 +97,28 @@ function App() {
               />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
+
+            {/* Toaster para notificaciones toast */}
+            <Toaster
+              position="top-right"
+              toastOptions={{
+                duration: 4000,
+                style: {
+                  background: "#363636",
+                  color: "#fff",
+                },
+                success: {
+                  style: {
+                    background: "#10B981",
+                  },
+                },
+                error: {
+                  style: {
+                    background: "#EF4444",
+                  },
+                },
+              }}
+            />
           </div>
         </Router>
       </AuthProvider>

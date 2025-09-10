@@ -37,30 +37,56 @@ export default defineConfig({
       workbox: {
         runtimeCaching: [
           {
-            urlPattern: /^\/api\/.*$/,
+            urlPattern: /^\/api\/.*$/i,
             handler: "NetworkFirst",
             options: {
               cacheName: "driverpro-api",
-              expiration: { maxEntries: 100, maxAgeSeconds: 86400 },
+              expiration: { maxEntries: 100, maxAgeSeconds: 60 * 60 * 24 }, // 1 día
             },
           },
         ],
       },
+      devOptions: { enabled: true }, // para registrar el SW en dev si lo necesitas
     }),
   ],
+
   server: {
     proxy: {
+      // Odoo HTTP normal (8069 → 18069)
       "/web": {
         target: "http://127.0.0.1:18069",
         changeOrigin: true,
         secure: false,
       },
-      // añade este y puedes borrar "/driverpro"
+
+      // Facade del addon: /api/* → http://127.0.0.1:18069/driverpro/api/*
       "/api": {
         target: "http://127.0.0.1:18069/driverpro",
         changeOrigin: true,
         secure: false,
         rewrite: (p) => p.replace(/^\/api/, "/api"),
+      },
+
+      // Bus "evented" (long-poll legacy) en Odoo 17/18 → usar puerto principal 18069
+      "/longpolling": {
+        target: "http://127.0.0.1:18069",
+        changeOrigin: true,
+        secure: false,
+      },
+
+      // WebSocket nativo del bus (para cuando quieras migrarte a WS)
+      "/websocket": {
+        target: "http://127.0.0.1:18072",
+        ws: true,
+        changeOrigin: true,
+        secure: false,
+      },
+
+      // Opcional: si en algún punto llamas a /driverpro/api/* directamente
+      "/driverpro": {
+        target: "http://127.0.0.1:18069",
+        changeOrigin: true,
+        secure: false,
       },
     },
   },

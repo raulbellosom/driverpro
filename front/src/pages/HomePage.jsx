@@ -7,12 +7,16 @@ import VehicleCard from "../components/VehicleCard";
 import TripTabs from "../components/TripTabs";
 import QuickTripButton from "../components/QuickTripButton";
 import QuickTripForm from "../components/QuickTripForm";
-import { RefreshCw, LogOut, User } from "lucide-react";
+import AppNavigation from "../components/AppNavigation";
+import { User } from "lucide-react";
+import ChatPanel from "../components/ChatPanel";
 
 const HomePage = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [showQuickTripForm, setShowQuickTripForm] = useState(false);
-  const { logout } = useAuth();
+  const [editingTripId, setEditingTripId] = useState(null);
+  const [showChat, setShowChat] = useState(false);
+  const { logout, user } = useAuth();
 
   const {
     data: assignmentData,
@@ -50,9 +54,39 @@ const HomePage = () => {
 
   const handleBackToList = () => {
     setShowQuickTripForm(false);
+    setEditingTripId(null);
   };
 
   const handleQuickTripClick = () => {
+    setShowQuickTripForm(true);
+  };
+
+  // Test notification function
+  const testNotification = async () => {
+    try {
+      console.log("📤 Enviando notificación de prueba...");
+      const result = await busAPI.sendNotification({
+        type: "success",
+        title: "🎉 Test de Notificación",
+        body: "Esta es una notificación de prueba desde el frontend - deberías verla aparecer en la esquina superior derecha!",
+      });
+
+      console.log("✅ Notificación de prueba enviada:", result);
+    } catch (error) {
+      console.error("❌ Error en test de notificación:", error);
+    }
+  };
+
+  // Nueva función para probar el bus directamente
+  const testBusConnection = async () => {
+    console.log("🧪 Probando conexión directa al bus...");
+    const result = await busAPI.testConnection();
+    console.log("🚌 Resultado del test:", result);
+  };
+
+  const handleNavigateToTripForm = (tripId) => {
+    // Set the trip ID for editing and show the form
+    setEditingTripId(tripId);
     setShowQuickTripForm(true);
   };
 
@@ -61,6 +95,7 @@ const HomePage = () => {
       // Refresh trips after successful creation
       await refetchTrips();
       setShowQuickTripForm(false);
+      setEditingTripId(null);
     } catch (error) {
       console.error("Error in quick trip submit:", error);
       // Error handling is done in the form component
@@ -85,54 +120,21 @@ const HomePage = () => {
         onBack={handleBackToList}
         onSubmit={handleQuickTripSubmit}
         assignmentData={assignmentData}
+        editingTripId={editingTripId}
       />
     );
   }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#eff7d0] to-[#c5f0a4]">
-      {/* Fixed Navbar */}
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md shadow-lg border-b border-[#a9e978]/20">
-        <div className="max-w-lg mx-auto px-4 py-3 flex items-center justify-between">
-          {/* Logo y nombre */}
-          <div className="flex items-center gap-3">
-            <img
-              src="/logo.png"
-              alt="Driver Pro Logo"
-              className="w-8 h-8 object-contain"
-            />
-            <h1 className="text-xl font-bold text-[#2a2a2a]">DriverPro</h1>
-          </div>
+      {/* Navegación usando el nuevo componente */}
+      <AppNavigation onRefresh={handleRefresh} refreshing={refreshing} />
 
-          {/* Botones de acción */}
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleRefresh}
-              disabled={refreshing}
-              className="p-2 text-[#2a2a2a] hover:text-[#000000] disabled:opacity-50 hover:bg-[#c5f0a4]/20 rounded-lg transition-colors"
-              title="Actualizar"
-            >
-              <RefreshCw
-                className={`w-5 h-5 ${refreshing ? "animate-spin" : ""}`}
-              />
-            </button>
-
-            <button
-              onClick={handleLogout}
-              className="p-2 text-[#2a2a2a] hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-              title="Cerrar sesión"
-            >
-              <LogOut className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
-      </nav>
-
-      {/* Main Content - con padding top para el navbar fijo */}
-      <main className="pt-16 pb-6">
+      {/* Main Content */}
+      <main className="pt-6 pb-6">
         <div className="max-w-lg mx-auto px-4 space-y-6">
           {/* Welcome Section */}
-          {assignmentData?.success && (
+          {/* {assignmentData?.success && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -150,7 +152,7 @@ const HomePage = () => {
                 </div>
               </div>
             </motion.div>
-          )}
+          )} */}
 
           {/* Vehicle Card */}
           {assignmentData?.success ? (
@@ -197,10 +199,22 @@ const HomePage = () => {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
           >
-            <TripTabs trips={tripsData?.data || []} loading={tripsLoading} />
+            <TripTabs
+              trips={tripsData?.data || []}
+              loading={tripsLoading}
+              onUpdate={refetchTrips}
+              onNavigateToTripForm={handleNavigateToTripForm}
+            />
           </motion.div>
         </div>
       </main>
+
+      {/* Chat Panel */}
+      <ChatPanel
+        isOpen={showChat}
+        onClose={() => setShowChat(false)}
+        currentUser={user}
+      />
     </div>
   );
 };

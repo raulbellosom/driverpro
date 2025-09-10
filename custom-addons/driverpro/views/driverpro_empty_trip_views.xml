@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+
+        <!-- Vista Lista de Búsquedas -->
+        <record id="view_driverpro_empty_trip_tree" model="ir.ui.view">
+            <field name="name">driverpro.empty_trip.tree</field>
+            <field name="model">driverpro.empty_trip</field>
+            <field name="arch" type="xml">
+                <list string="Búsquedas de Clientes" decoration-primary="state == 'searching'" decoration-success="state == 'converted'" decoration-muted="state == 'cancelled'">
+                    <field name="name"/>
+                    <field name="driver_id"/>
+                    <field name="vehicle_id"/>
+                    <field name="search_location"/>
+                    <field name="wait_limit_minutes" string="Límite (min)"/>
+                    <field name="time_remaining" string="Restante (min)" decoration-danger="time_remaining &lt;= 5" decoration-warning="time_remaining &lt;= 15"/>
+                    <field name="started_at"/>
+                    <field name="converted_trip_id" string="Viaje Creado"/>
+                    <field name="state"/>
+                </list>
+            </field>
+        </record>
+
+        <!-- Vista Formulario de Búsquedas -->
+        <record id="view_driverpro_empty_trip_form" model="ir.ui.view">
+            <field name="name">driverpro.empty_trip.form</field>
+            <field name="model">driverpro.empty_trip</field>
+            <field name="arch" type="xml">
+                <form string="Búsqueda de Clientes">
+                    <header>
+                        <button name="action_start_search" type="object" string="Iniciar Búsqueda" class="oe_highlight" invisible="state != 'searching' or started_at"/>
+                        <button name="action_convert_to_trip" type="object" string="Cliente Encontrado" class="oe_highlight" invisible="state != 'searching'" confirm="¿Confirma que encontró un cliente y desea crear el viaje?"/>
+                        <button name="action_cancel_search" type="object" string="Cancelar Búsqueda" invisible="state != 'searching'" confirm="¿Está seguro de cancelar la búsqueda?"/>
+                        <field name="state" widget="statusbar" statusbar_visible="searching,converted,cancelled"/>
+                    </header>
+                    <sheet>
+                        <widget name="web_ribbon" title="Buscando Cliente" bg_color="bg-primary" invisible="state != 'searching'"/>
+                        <widget name="web_ribbon" title="Convertido" bg_color="bg-success" invisible="state != 'converted'"/>
+                        <widget name="web_ribbon" title="Cancelado" bg_color="bg-danger" invisible="state != 'cancelled'"/>
+
+                        <div class="oe_title">
+                            <h1>
+                                <field name="name" readonly="1"/>
+                            </h1>
+                        </div>
+
+                        <group>
+                            <group name="basic_info" string="Información Básica">
+                                <field name="driver_id" options="{'no_create': True}" readonly="state != 'searching'"/>
+                                <field name="vehicle_id" options="{'no_create': True}" readonly="state != 'searching'"/>
+                                <field name="search_location" readonly="state != 'searching'" placeholder="Aeropuerto Internacional, Terminal 2, Llegadas..."/>
+                            </group>
+                            <group name="time_info" string="Configuración de Tiempo">
+                                <field name="wait_limit_minutes" readonly="state != 'searching'" help="Tiempo máximo en minutos antes de cancelación automática"/>
+                                <field name="started_at" readonly="1"/>
+                                <field name="time_remaining" readonly="1" decoration-danger="time_remaining &lt;= 5" decoration-warning="time_remaining &lt;= 15" decoration-success="time_remaining &gt; 15" invisible="state != 'searching'"/>
+                            </group>
+                        </group>
+
+                        <group invisible="state not in ['converted', 'cancelled']">
+                            <group name="result_info" string="Resultado">
+                                <field name="converted_trip_id" readonly="1" invisible="state != 'converted'"/>
+                                <field name="converted_at" readonly="1" invisible="state != 'converted'"/>
+                                <field name="cancelled_at" readonly="1" invisible="state != 'cancelled'"/>
+                            </group>
+                        </group>
+
+                        <!-- Alertas visuales -->
+                        <div class="alert alert-warning" role="alert" invisible="state != 'searching' or time_remaining == False or time_remaining &gt; 15">
+                            <i class="fa fa-clock-o"/>
+                            <strong>Tiempo limitado:</strong>
+                            <span invisible="time_remaining &gt; 5">¡Solo quedan <field name="time_remaining" nolabel="1"/>
+ minutos!</span>
+                            <span invisible="time_remaining &lt;= 5">Quedan <field name="time_remaining" nolabel="1"/>
+ minutos antes de la cancelación automática.</span>
+                        </div>
+
+                        <div class="alert alert-info" role="alert" invisible="state != 'searching'">
+                            <i class="fa fa-search"/>
+                            <strong>Búsqueda activa:</strong> Use el botón "Cliente Encontrado" cuando tenga un pasajero confirmado.
+                        </div>
+                    </sheet>
+                </form>
+            </field>
+        </record>
+
+        <!-- Acción de Ventana -->
+        <record id="action_driverpro_empty_trip" model="ir.actions.act_window">
+            <field name="name">Búsquedas de Clientes</field>
+            <field name="type">ir.actions.act_window</field>
+            <field name="res_model">driverpro.empty_trip</field>
+            <field name="view_mode">list,form</field>
+            <field name="help" type="html">
+                <p class="o_view_nocontent_smiling_face">
+                    ¡Crea tu primera búsqueda de clientes!
+                </p>
+                <p>
+                    Las búsquedas te permiten indicar cuando estás buscando clientes
+                    en aeropuertos o zonas específicas con límites de tiempo.
+                </p>
+            </field>
+        </record>
+
+    </data>
+</odoo>

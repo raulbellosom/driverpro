@@ -142,30 +142,32 @@ const TripDetailView = ({ trip, onBack, onAction }) => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#eff7d0] to-[#c5f0a4] pt-16">
-      {/* Header */}
-      <div className="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md shadow-lg border-b border-[#a9e978]/20">
-        <div className="max-w-lg mx-auto px-4 py-3 flex items-center justify-between">
+    <div className="pt-6">
+      {/* Header integrado en el contenido */}
+      <div className="max-w-lg mx-auto px-4 mb-6">
+        <div className="flex items-center justify-between">
           <button
             onClick={onBack}
-            className="flex items-center gap-2 text-[#2a2a2a] hover:text-[#000000] transition-colors"
+            className="flex items-center gap-2 text-[#2a2a2a] hover:text-[#000000] transition-colors bg-white/80 backdrop-blur-sm px-3 py-2 rounded-lg shadow-sm"
           >
             <ArrowLeft className="w-5 h-5" />
             <span className="font-medium">Volver</span>
           </button>
-          <h1 className="text-lg font-bold text-[#2a2a2a]">{trip.name}</h1>
-          <div
-            className={`px-3 py-1 rounded-full text-xs font-medium text-white ${getStatusColor(
-              trip.state
-            )}`}
-          >
-            {getStatusText(trip.state)}
+          <div className="flex items-center gap-3">
+            <h1 className="text-lg font-bold text-[#2a2a2a]">{trip.name}</h1>
+            <div
+              className={`px-3 py-1 rounded-full text-xs font-medium text-white ${getStatusColor(
+                trip.state
+              )}`}
+            >
+              {getStatusText(trip.state)}
+            </div>
           </div>
         </div>
       </div>
 
       {/* Content */}
-      <div className="max-w-lg mx-auto px-4 py-6 space-y-6">
+      <div className="max-w-lg mx-auto px-4 pb-6 space-y-6">
         {/* Trip Information */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}

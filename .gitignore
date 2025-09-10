@@ -45,3 +45,7 @@ secrets/
 .DS_Store
 Thumbs.db
 odoo-source/
+
+# odoo-source, ignora el contenido de postgress y odoo
+odoo-source/postgres/
+odoo-source/odoo/

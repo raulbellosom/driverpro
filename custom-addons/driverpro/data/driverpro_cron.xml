@@ -13,5 +13,27 @@
             <field name="active" eval="True"/>
         </record>
 
+        <!-- Cron Job para alertas de viajes vacíos -->
+        <record id="cron_empty_trip_alerts" model="ir.cron">
+            <field name="name">Alertas de Búsquedas de Clientes</field>
+            <field name="model_id" ref="model_driverpro_empty_trip"/>
+            <field name="state">code</field>
+            <field name="code">model.check_time_alerts()</field>
+            <field name="interval_number">1</field>
+            <field name="interval_type">minutes</field>
+            <field name="active" eval="True"/>
+        </record>
+
+        <!-- Cron Job para auto-cancelar búsquedas expiradas -->
+        <record id="cron_empty_trip_auto_cancel" model="ir.cron">
+            <field name="name">Auto-cancelar Búsquedas Expiradas</field>
+            <field name="model_id" ref="model_driverpro_empty_trip"/>
+            <field name="state">code</field>
+            <field name="code">model.auto_cancel_expired()</field>
+            <field name="interval_number">2</field>
+            <field name="interval_type">minutes</field>
+            <field name="active" eval="True"/>
+        </record>
+
     </data>
 </odoo>

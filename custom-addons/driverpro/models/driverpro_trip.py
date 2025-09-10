@@ -4,6 +4,9 @@ from odoo import models, fields, api, _
 from odoo.exceptions import ValidationError, UserError
 from datetime import datetime, timedelta
 import pytz
+import logging
+
+_logger = logging.getLogger(__name__)
 
 
 class DriverproTrip(models.Model):
@@ -24,6 +27,7 @@ class DriverproTrip(models.Model):
     # Estados del viaje
     state = fields.Selection([
         ('draft', 'Borrador'),
+        ('empty', 'Viaje Vacío'),
         ('active', 'Activo'),
         ('paused', 'Pausado'),
         ('done', 'Terminado'),
@@ -92,11 +96,67 @@ class DriverproTrip(models.Model):
         help="Nombre, teléfono o referencia del pasajero"
     )
     
+    client_name = fields.Char(
+        string='Nombre del Cliente',
+        help="Nombre del cliente para viajes convertidos desde vacío"
+    )
+    
     comments = fields.Html(
         string='Comentarios',
         help="Comentarios y notas del viaje con formato enriquecido"
     )
     
+    # Campos para zonas de acceso controlado
+    is_recharge_trip = fields.Boolean(
+        string='Viaje con Recarga',
+        default=False,
+        tracking=True,
+        help="Marcar si este viaje requiere consumo de recarga (ej: origen en aeropuerto)"
+    )
+
+    # Campos para viajes vacíos (búsqueda de cliente en zona)
+    is_empty_trip = fields.Boolean(
+        string='Viaje Vacío',
+        default=False,
+        tracking=True,
+        help="Marcar si es un viaje vacío para buscar cliente en zona controlada"
+    )
+    
+    empty_wait_limit_minutes = fields.Integer(
+        string='Límite de Espera (min)',
+        default=120,
+        help="Tiempo máximo de espera en minutos para viaje vacío"
+    )
+    
+    empty_started_at = fields.Datetime(
+        string='Inicio de Búsqueda',
+        help="Fecha y hora cuando se inició la búsqueda de cliente"
+    )
+    
+    empty_time_remaining = fields.Float(
+        string='Tiempo Restante (min)',
+        compute='_compute_empty_time_remaining',
+        help="Tiempo restante en minutos para el viaje vacío"
+    )
+    
+    empty_alert_30_sent = fields.Boolean(
+        string='Alerta 30 min Enviada',
+        default=False,
+        help="Marca si se envió la alerta de 30 minutos"
+    )
+    
+    empty_alert_15_sent = fields.Boolean(
+        string='Alerta 15 min Enviada', 
+        default=False,
+        help="Marca si se envió la alerta de 15 minutos"
+    )
+    
+    empty_alert_5_sent = fields.Boolean(
+        string='Alerta 5 min Enviada',
+        default=False,
+        help="Marca si se envió la alerta de 5 minutos"
+    )
+
     # Campos para archivos adjuntos
     document_ids = fields.Many2many(
         'ir.attachment',
@@ -297,7 +357,67 @@ class DriverproTrip(models.Model):
         """Asignar secuencia al crear"""
         if not vals.get('name') or vals.get('name') in ('/', _('Nuevo'), 'New'):
             vals['name'] = self.env['ir.sequence'].next_by_code('driverpro.trip') or 'TRIP-000001'
-        return super().create(vals)
+        
+        trip = super().create(vals)
+        
+        # Enviar notificación si se asigna un driver al crear
+        if vals.get('driver_id'):
+            try:
+                bus_message = {
+                    'type': 'trip_created',
+                    'title': 'Nuevo Viaje Creado',
+                    'body': f'Se ha creado el viaje {trip.name} y se te ha asignado',
+                    'trip_id': trip.id,
+                    'trip_name': trip.name,
+                    'user_id': trip.driver_id.id,
+                    'timestamp': fields.Datetime.now().isoformat()
+                }
+                
+                # Enviar notificación específica al usuario
+                self.env['bus.bus']._sendone(
+                    f'driverpro_notifications_{trip.driver_id.id}',
+                    'notification',
+                    bus_message
+                )
+                
+                _logger.info(f"Notificación de viaje creado enviada al usuario {trip.driver_id.id} para viaje {trip.name}")
+                
+            except Exception as e:
+                _logger.error(f"Error enviando notificación de viaje creado: {str(e)}")
+        
+        return trip
+
+    def write(self, vals):
+        """Manejar cambios en el viaje, especialmente asignación de driver"""
+        result = super().write(vals)
+        
+        # Si se cambia el driver, enviar notificación al nuevo driver
+        if vals.get('driver_id'):
+            for trip in self:
+                try:
+                    bus_message = {
+                        'type': 'trip_assigned',
+                        'title': 'Viaje Reasignado',
+                        'body': f'Se te ha reasignado el viaje {trip.name}',
+                        'trip_id': trip.id,
+                        'trip_name': trip.name,
+                        'user_id': trip.driver_id.id,
+                        'timestamp': fields.Datetime.now().isoformat()
+                    }
+                    
+                    # Enviar notificación específica al nuevo usuario
+                    self.env['bus.bus']._sendone(
+                        f'driverpro_notifications_{trip.driver_id.id}',
+                        'notification',
+                        bus_message
+                    )
+                    
+                    _logger.info(f"Notificación de reasignación enviada al usuario {trip.driver_id.id} para viaje {trip.name}")
+                    
+                except Exception as e:
+                    _logger.error(f"Error enviando notificación de reasignación: {str(e)}")
+        
+        return result
 
     def _convert_to_user_timezone(self, datetime_utc, user=None):
         """Convierte datetime UTC a la zona horaria del usuario"""
@@ -557,6 +677,17 @@ class DriverproTrip(models.Model):
             current_pause = trip.pause_ids.filtered('is_active')
             trip.current_pause_id = current_pause[0] if current_pause else False
 
+    @api.depends('empty_started_at', 'empty_wait_limit_minutes', 'state')
+    def _compute_empty_time_remaining(self):
+        """Calcula el tiempo restante para viajes vacíos"""
+        for trip in self:
+            if trip.state == 'empty' and trip.empty_started_at:
+                now = fields.Datetime.now()
+                elapsed_minutes = (now - trip.empty_started_at).total_seconds() / 60
+                trip.empty_time_remaining = max(0, trip.empty_wait_limit_minutes - elapsed_minutes)
+            else:
+                trip.empty_time_remaining = 0
+
     @api.constrains('driver_id')
     def _check_driver_required(self):
         """Valida que el chofer esté seleccionado"""
@@ -596,13 +727,13 @@ class DriverproTrip(models.Model):
     
     @api.constrains('state', 'card_id', 'credit_consumed')
     def _check_card_credits_for_start(self):
-        """Valida que se haya consumido una recarga para estados activos"""
+        """Valida que se haya consumido una recarga para estados activos (solo para viajes con recarga)"""
         for trip in self:
-            # Solo validar para estados que requieren recarga consumida
-            if trip.state in ['active', 'paused', 'done']:
+            # Solo validar para viajes que requieren recarga Y están en estados activos
+            if trip.state in ['active', 'paused', 'done'] and trip.is_recharge_trip:
                 if not trip.credit_consumed:
                     raise ValidationError(
-                        _('No se puede cambiar el estado del viaje a "%s" sin haber consumido una recarga previamente. '
+                        _('No se puede cambiar el estado del viaje con recarga a "%s" sin haber consumido una recarga previamente. '
                           'Debe iniciar el viaje primero para consumir la recarga.') % 
                         dict(self._fields['state'].selection)[trip.state]
                     )
@@ -675,22 +806,24 @@ class DriverproTrip(models.Model):
                 raise UserError(_('No hay tarjeta asignada a este vehículo. '
                                 'Por favor, asigne una tarjeta activa al vehículo antes de iniciar el viaje.'))
             
-            # Validar que la tarjeta tiene créditos suficientes
-            if trip.card_id.balance <= 0:
-                raise UserError(_('La tarjeta %s no tiene recargas suficientes para iniciar el viaje. '
-                                'Saldo actual: %s. Por favor, realice una recarga antes de continuar.') % 
-                                (trip.card_id.name, trip.card_id.balance))
-            
-            # Consumir crédito de la tarjeta
-            try:
-                trip.card_id.consume_credit(
-                    amount=1.0,
-                    reference=_('Viaje: %s') % trip.name
-                )
-                trip.consumed_credits = 1.0
-                trip.credit_consumed = True
-            except UserError as e:
-                raise UserError(_('Error al consumir recarga: %s') % str(e))
+            # Solo validar y consumir créditos si es un viaje con recarga
+            if trip.is_recharge_trip:
+                # Validar que la tarjeta tiene créditos suficientes
+                if trip.card_id.balance <= 0:
+                    raise UserError(_('La tarjeta %s no tiene recargas suficientes para este viaje con recarga. '
+                                    'Saldo actual: %s. Por favor, realice una recarga antes de continuar.') % 
+                                    (trip.card_id.name, trip.card_id.balance))
+                
+                # Consumir crédito usando el método existente
+                try:
+                    trip.card_id.consume_credit(
+                        amount=1.0,
+                        reference=_('Viaje con recarga: %s') % trip.name
+                    )
+                    trip.consumed_credits = 1.0
+                    trip.credit_consumed = True
+                except UserError as e:
+                    raise UserError(_('Error al consumir recarga: %s') % str(e))
             
             # Actualizar estado y tiempo
             trip.write({
@@ -698,7 +831,34 @@ class DriverproTrip(models.Model):
                 'start_datetime': fields.Datetime.now()
             })
             
-            trip.message_post(body=_('Viaje iniciado. Recarga consumida: %s') % trip.consumed_credits)
+            # Enviar notificación al bus
+            try:
+                bus_message = {
+                    'type': 'trip_assigned',
+                    'title': 'Nuevo Viaje Asignado',
+                    'body': f'Se te ha asignado el viaje {trip.name}',
+                    'trip_id': trip.id,
+                    'trip_name': trip.name,
+                    'user_id': trip.driver_id.id,
+                    'timestamp': fields.Datetime.now().isoformat()
+                }
+                
+                # Enviar notificación específica al usuario
+                self.env['bus.bus']._sendone(
+                    f'driverpro_notifications_{trip.driver_id.id}',
+                    'notification',
+                    bus_message
+                )
+                
+                _logger.info(f"Notificación enviada al usuario {trip.driver_id.id} para viaje {trip.name}")
+                
+            except Exception as e:
+                _logger.error(f"Error enviando notificación: {str(e)}")
+            
+            if trip.is_recharge_trip:
+                trip.message_post(body=_('Viaje con recarga iniciado. Recarga consumida: %s') % trip.consumed_credits)
+            else:
+                trip.message_post(body=_('Viaje iniciado (sin consumo de recarga).'))
 
     def action_pause(self, reason_id=None, notes=None):
         """Pausa el viaje"""
@@ -798,6 +958,153 @@ class DriverproTrip(models.Model):
             trip.credit_refunded = True
             trip.message_post(body=_('Recarga reembolsada: %s créditos') % trip.consumed_credits)
 
+    def action_start_empty(self):
+        """Inicia un viaje vacío (búsqueda de clientes en aeropuerto/zona)"""
+        for trip in self:
+            if trip.state != 'draft':
+                raise UserError(_('Solo se pueden iniciar viajes vacíos desde borrador.'))
+            
+            # Validar configuración básica
+            if not trip.vehicle_id:
+                raise UserError(_('Debe seleccionar un vehículo para el viaje vacío.'))
+                
+            if not trip.driver_id.partner_id:
+                raise UserError(_('El usuario %s no tiene un contacto asociado.') % trip.driver_id.name)
+                
+            if trip.vehicle_id.driver_id != trip.driver_id.partner_id:
+                raise UserError(_('El chofer seleccionado no tiene asignado este vehículo en el módulo de Flota.'))
+            
+            # No se requiere tarjeta ni validaciones de recarga para viajes vacíos
+            if not trip.empty_wait_limit_minutes or trip.empty_wait_limit_minutes <= 0:
+                trip.empty_wait_limit_minutes = 60  # Default: 1 hora
+            
+            # Actualizar estado y tiempos
+            trip.write({
+                'state': 'empty',
+                'is_empty_trip': True,
+                'empty_started_at': fields.Datetime.now(),
+                'start_datetime': fields.Datetime.now(),
+                'empty_alert_30_sent': False,
+                'empty_alert_15_sent': False,
+                'empty_alert_5_sent': False,
+            })
+            
+            trip.message_post(body=_('Viaje vacío iniciado. Límite de tiempo: %s minutos') % trip.empty_wait_limit_minutes)
+
+    def action_convert_empty_to_active(self, trip_data=None):
+        """Convierte un viaje vacío a viaje activo cuando encuentra cliente"""
+        for trip in self:
+            if trip.state != 'empty':
+                raise UserError(_('Solo se pueden convertir viajes en estado vacío.'))
+            
+            if not trip_data:
+                raise UserError(_('Se requiere información del cliente para convertir el viaje.'))
+            
+            # Validar información mínima requerida
+            if not trip_data.get('client_name'):
+                raise UserError(_('Debe ingresar el nombre del cliente.'))
+            
+            if not trip_data.get('origin'):
+                raise UserError(_('Debe ingresar el origen del viaje.'))
+                
+            if not trip_data.get('destination'):
+                raise UserError(_('Debe ingresar el destino del viaje.'))
+            
+            # Actualizar información del viaje
+            update_vals = {
+                'state': 'active',
+                'is_empty_trip': False,
+                'empty_started_at': False,  # Limpiar tiempo de vacío
+                'client_name': trip_data.get('client_name'),
+                'origin': trip_data.get('origin'),
+                'destination': trip_data.get('destination'),
+                'passenger_count': trip_data.get('passenger_count', 1),
+                'passenger_reference': trip_data.get('passenger_reference', ''),
+                'is_recharge_trip': trip_data.get('is_recharge_trip', False),
+                'payment_method': trip_data.get('payment_method', 'cash'),
+                'amount_mxn': trip_data.get('amount_mxn', 0.0),
+            }
+            
+            # Si es viaje con recarga, validar que hay créditos
+            if update_vals['is_recharge_trip']:
+                if not trip.card_id:
+                    raise UserError(_('No hay tarjeta asignada para el viaje con recarga.'))
+                if trip.card_id.balance <= 0:
+                    raise UserError(_('La tarjeta no tiene recargas suficientes para este viaje con recarga.'))
+            
+            trip.write(update_vals)
+            
+            trip_type_text = _('con recarga') if update_vals['is_recharge_trip'] else _('regular')
+            message_body = _('Viaje convertido de vacío a %(type)s. Cliente: %(client)s') % {
+                'type': trip_type_text,
+                'client': trip_data.get('client_name')
+            }
+            
+            trip.message_post(body=message_body)
+
+    def action_cancel_empty(self):
+        """Cancela un viaje vacío"""
+        for trip in self:
+            if trip.state != 'empty':
+                raise UserError(_('Solo se pueden cancelar viajes en estado vacío.'))
+            
+            trip.write({
+                'state': 'cancelled',
+                'end_datetime': fields.Datetime.now()
+            })
+            
+            trip.message_post(body=_('Viaje vacío cancelado. Tiempo transcurrido: %s minutos') % 
+                            (trip.empty_wait_limit_minutes - trip.empty_time_remaining if trip.empty_time_remaining > 0 else trip.empty_wait_limit_minutes))
+
+    @api.model
+    def check_empty_trip_alerts(self):
+        """Método para verificar y enviar alertas de viajes vacíos (ejecutado por cron)"""
+        empty_trips = self.search([
+            ('state', '=', 'empty'),
+            ('empty_started_at', '!=', False),
+        ])
+        
+        alerts_sent = 0
+        
+        for trip in empty_trips:
+            if trip.empty_time_remaining <= 0:
+                # Tiempo agotado - cancelar automáticamente
+                trip.action_cancel_empty()
+                trip.message_post(body=_('Viaje vacío cancelado automáticamente por tiempo agotado.'))
+                alerts_sent += 1
+            elif trip.empty_time_remaining <= 5 and not trip.empty_alert_5_sent:
+                # Alerta de 5 minutos
+                trip.empty_alert_5_sent = True
+                trip._send_empty_trip_alert(5)
+                alerts_sent += 1
+            elif trip.empty_time_remaining <= 15 and not trip.empty_alert_15_sent:
+                # Alerta de 15 minutos
+                trip.empty_alert_15_sent = True
+                trip._send_empty_trip_alert(15)
+                alerts_sent += 1
+            elif trip.empty_time_remaining <= 30 and not trip.empty_alert_30_sent:
+                # Alerta de 30 minutos
+                trip.empty_alert_30_sent = True
+                trip._send_empty_trip_alert(30)
+                alerts_sent += 1
+        
+        return alerts_sent
+
+    def _send_empty_trip_alert(self, minutes_remaining):
+        """Envía alerta de tiempo restante para viaje vacío"""
+        message = _('⚠️ ALERTA VIAJE VACÍO: Quedan %s minutos para que se cancele automáticamente el viaje %s') % (minutes_remaining, self.name)
+        
+        # Notificar al chofer
+        if self.driver_id:
+            self.message_post(
+                body=message,
+                partner_ids=[self.driver_id.partner_id.id] if self.driver_id.partner_id else [],
+                message_type='notification'
+            )
+        
+        # También registrar en el chatter del viaje
+        self.message_post(body=message)
+
     def action_view_pauses(self):
         """Ver pausas del viaje"""
         return {
@@ -862,79 +1169,31 @@ class DriverproTrip(models.Model):
         minutes_left = int(time_diff.total_seconds() / 60)
         time_formatted = self._format_time_remaining(minutes_left)
         
-        # Buscar un tipo de actividad apropiado
-        activity_type = self.env['mail.activity.type'].search([
-            ('name', 'ilike', 'reminder')
-        ], limit=1)
-        
-        if not activity_type:
-            # Si no hay tipo "reminder", usar el primero disponible
-            activity_type = self.env['mail.activity.type'].search([], limit=1)
-        
-        if not activity_type:
-            # Si no hay tipos de actividad, crear uno básico
-            activity_type = self.env['mail.activity.type'].create({
-                'name': 'Recordatorio',
-                'summary': 'Recordatorio de viaje',
-                'delay_count': 0,
-                'delay_unit': 'days',
-            })
-        
-        # Crear actividad de recordatorio
-        activity = self.env['mail.activity'].create({
-            'activity_type_id': activity_type.id,
-            'res_model_id': self.env['ir.model']._get(self._name).id,
-            'res_id': self.id,
-            'user_id': self.driver_id.id,
-            'summary': _('🚗 Recordatorio: Viaje programado en %s') % time_formatted,
-            'note': _(
-                '📍 <b>Viaje programado para:</b> %s<br/>'
-                '🚩 <b>Origen:</b> %s<br/>'
-                '🎯 <b>Destino:</b> %s<br/>'
-                '👥 <b>Pasajeros:</b> %s<br/>'
-                '⏰ <b>Tiempo restante:</b> %s<br/><br/>'
-                '💡 <i>Por favor, prepárate para el viaje.</i>'
-            ) % (
-                scheduled_local.strftime('%d/%m/%Y %H:%M'),
-                self.origin or 'No especificado',
-                self.destination or 'No especificado',
-                self.passenger_count or 'No especificado',
-                time_formatted
-            ),
-            'date_deadline': fields.Date.today(),
-        })
-        
-        # Enviar notificación por email también
-        if self.driver_id.email:
-            email_body = _(
-                '<h3>🚗 Recordatorio de Viaje Programado</h3>'
-                '<p>Estimado/a <strong>%s</strong>,</p>'
-                '<p>Te recordamos que tienes un viaje programado:</p>'
-                '<ul>'
-                '<li><strong>📅 Fecha y hora:</strong> %s</li>'
-                '<li><strong>🚩 Origen:</strong> %s</li>'
-                '<li><strong>🎯 Destino:</strong> %s</li>'
-                '<li><strong>👥 Pasajeros:</strong> %s</li>'
-                '<li><strong>⏰ Tiempo restante:</strong> %s</li>'
-                '</ul>'
-                '<p>Por favor, prepárate para el viaje.</p>'
-                '<p>Saludos,<br/>Equipo DriverPro</p>'
-            ) % (
-                self.driver_id.name,
-                scheduled_local.strftime('%d/%m/%Y %H:%M'),
-                self.origin or 'No especificado',
-                self.destination or 'No especificado', 
-                self.passenger_count or 'No especificado',
-                time_formatted
+        try:
+            # Enviar notificación al bus para notificaciones inmediatas
+            bus_message = {
+                'type': 'scheduled_trip_reminder',
+                'title': f'Viaje programado en {time_formatted}',
+                'body': f'Viaje de {self.origin} a {self.destination}',
+                'trip_id': self.id,
+                'trip_name': self.name,
+                'user_id': self.driver_id.id,
+                'scheduled_datetime': self.scheduled_datetime.isoformat(),
+                'minutes_left': minutes_left,
+                'timestamp': fields.Datetime.now().isoformat()
+            }
+            
+            # Enviar notificación específica al usuario
+            self.env['bus.bus']._sendone(
+                f'driverpro_notifications_{self.driver_id.id}',
+                'notification',
+                bus_message
             )
             
-            self.env['mail.mail'].create({
-                'subject': _('🚗 Recordatorio: Viaje programado en %s') % time_formatted,
-                'body_html': email_body,
-                'email_to': self.driver_id.email,
-                'email_from': self.env.user.email or 'noreply@driverpro.com',
-                'state': 'outgoing',
-            }).send()
+            _logger.info(f"Notificación de viaje programado enviada al usuario {self.driver_id.id} para viaje {self.name}")
+            
+        except Exception as e:
+            _logger.error(f"Error enviando notificación de viaje programado: {str(e)}")
         
         # Enviar mensaje en el chatter
         self.message_post(

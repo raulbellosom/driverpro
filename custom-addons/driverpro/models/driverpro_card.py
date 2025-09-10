@@ -2,6 +2,9 @@
 
 from odoo import models, fields, api, _
 from odoo.exceptions import ValidationError, UserError
+import logging
+
+_logger = logging.getLogger(__name__)
 
 
 class DriverproCard(models.Model):
@@ -415,6 +418,38 @@ class DriverproCardRecharge(models.Model):
             })
             
             recharge.state = 'confirmed'
+            
+            # Enviar notificación al chofer de la tarjeta
+            if recharge.card_id and recharge.card_id.vehicle_id and recharge.card_id.vehicle_id.driver_id:
+                try:
+                    # Obtener el usuario correspondiente al driver
+                    driver_user = self.env['res.users'].search([
+                        ('partner_id', '=', recharge.card_id.vehicle_id.driver_id.id)
+                    ], limit=1)
+                    
+                    if driver_user:
+                        bus_message = {
+                            'type': 'recharge_confirmed',
+                            'title': 'Recarga procesada',
+                            'body': f'Se ha procesado una recarga de ${recharge.amount} MXN en tu tarjeta {recharge.card_id.name}',
+                            'recharge_id': recharge.id,
+                            'card_id': recharge.card_id.id,
+                            'amount': recharge.amount,
+                            'user_id': driver_user.id,
+                            'timestamp': fields.Datetime.now().isoformat()
+                        }
+                        
+                        # Enviar notificación específica al usuario
+                        self.env['bus.bus']._sendone(
+                            f'driverpro_notifications_{driver_user.id}',
+                            'notification',
+                            bus_message
+                        )
+                        
+                        _logger.info(f"Notificación de recarga enviada al usuario {driver_user.id} - Tarjeta {recharge.card_id.name}")
+                        
+                except Exception as e:
+                    _logger.error(f"Error enviando notificación de recarga: {str(e)}")
 
     def action_cancel(self):
         """Cancela la recarga"""

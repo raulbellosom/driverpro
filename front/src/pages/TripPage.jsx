@@ -4,6 +4,7 @@ import { motion } from "motion/react";
 import toast from "react-hot-toast";
 import { useTrips, useTripAction } from "../lib/queries";
 import TripDetailView from "../components/TripDetailView";
+import AppNavigation from "../components/AppNavigation";
 import { ArrowLeft, Loader2 } from "lucide-react";
 
 const TripPage = () => {
@@ -66,6 +67,11 @@ const TripPage = () => {
     }
   };
 
+  const handleRefresh = async () => {
+    await refetchTrips();
+    toast.success("Datos actualizados", { icon: "🔄" });
+  };
+
   const handleBack = () => {
     navigate("/");
   };
@@ -105,8 +111,11 @@ const TripPage = () => {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="min-h-screen"
+      className="min-h-screen bg-gradient-to-br from-[#eff7d0] to-[#c5f0a4]"
     >
+      {/* Navegación */}
+      <AppNavigation onRefresh={handleRefresh} />
+
       <TripDetailView
         trip={trip}
         onBack={handleBack}

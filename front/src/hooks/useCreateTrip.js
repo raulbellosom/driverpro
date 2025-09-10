@@ -60,8 +60,26 @@ export const useCreateTrip = () => {
       const result = await response.json();
 
       if (result.success) {
-        toast.success(`Viaje creado exitosamente: ${result.data.name}`, {
-          icon: "🚗",
+        // Personalizar mensaje según el tipo de viaje
+        let successMessage = "";
+        let successIcon = "🚗";
+
+        if (tripData.trip_type === "empty") {
+          successMessage = `Búsqueda iniciada: ${result.data.name}`;
+          successIcon = "🔍";
+        } else if (
+          tripData.trip_type === "recharge" ||
+          tripData.is_recharge_trip
+        ) {
+          successMessage = `Viaje con recarga creado: ${result.data.name}`;
+          successIcon = "💳";
+        } else {
+          successMessage = `Viaje creado exitosamente: ${result.data.name}`;
+          successIcon = "🚗";
+        }
+
+        toast.success(successMessage, {
+          icon: successIcon,
         });
 
         if (result.data.files_count > 0) {

@@ -15,5 +15,18 @@
             <field name="company_id" eval="False"/>
         </record>
 
+        <!-- Secuencia para Viajes Vacíos -->
+        <record id="seq_driverpro_empty_trip" model="ir.sequence">
+            <field name="name">Búsquedas Driver Pro</field>
+            <field name="code">driverpro.empty_trip</field>
+            <field name="prefix">SEARCH-</field>
+            <field name="suffix"></field>
+            <field name="padding">6</field>
+            <field name="number_next">1</field>
+            <field name="number_increment">1</field>
+            <field name="implementation">standard</field>
+            <field name="company_id" eval="False"/>
+        </record>
+
     </data>
 </odoo>

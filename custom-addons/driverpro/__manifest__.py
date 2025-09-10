@@ -1,6 +1,6 @@
 {
     'name': 'Driver Pro',
-    'version': '18.0.2.0.0',
+    'version': '18.0.2.0.1',
     'summary': 'Gestión avanzada de flotillas de transporte',
     'description': """
         Driver Pro - Módulo de gestión de flotillas
@@ -43,6 +43,7 @@
         # Views - Las acciones primero, luego los menús
         'views/driverpro_card_views.xml',
         'views/driverpro_trip_views.xml',
+        'views/driverpro_empty_trip_views.xml',
         # 'views/driverpro_assignment_views.xml',  # Deshabilitado - se usa Fleet directamente
         'views/driverpro_menu.xml',
     ],

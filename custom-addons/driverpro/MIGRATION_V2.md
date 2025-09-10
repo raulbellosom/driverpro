@@ -1,130 +1,149 @@
-# DriverPro v2.0.0 - Guía de Migración
+1. Qué se agrega (solo lo necesario)
+   1.1 En driverpro.trip (modelo existente)
 
-## Cambios Principales
+Campos nuevos:
 
-### ✅ Eliminación del Modelo de Asignaciones
+is_recharge_trip (Boolean) → etiqueta en UI: “Viaje con recarga (origen en zona)”.
 
-- Se ha eliminado el modelo `driverpro.assignment`
-- Ya no es necesario gestionar asignaciones por separado
-- La funcionalidad se maneja directamente con el módulo Fleet de Odoo
+zone_origin (Selection/Char opcional) → si quieres etiquetar “Aeropuerto / Otra zona / Ninguna” (solo para filtros/reportes).
 
-### ✅ Integración Completa con Fleet
+Comportamiento mínimo:
 
-- Los vehículos se asignan a conductores directamente en **Fleet > Configuración > Vehículos**
-- **IMPORTANTE**: El conductor en Fleet debe ser un contacto (res.partner)
-- Los usuarios deben estar vinculados con los contactos de los conductores
-- Al seleccionar un chofer (usuario) en un viaje, el vehículo se asigna automáticamente
-- La tarjeta se asigna automáticamente basándose en el vehículo
+Al iniciar o confirmar un viaje:
 
-### ✅ Flujo Simplificado de Creación de Viajes
+Si is_recharge_trip = True → crear un driverpro.card_credit consume (monto -1), related_trip_id = este viaje. Dejarlo posted (o draft y postear al completar, como prefieras).
 
-1. **Seleccionar Chofer**: Elige el chofer del viaje (debe ser un usuario activo)
-2. **Validación Automática**: El sistema verifica:
-   - Que el usuario tenga un contacto asociado
-   - Que el contacto tenga un vehículo asignado en Fleet
-   - Que el vehículo tenga una tarjeta activa
-3. **Asignación Automática**: El sistema asigna automáticamente:
-   - El vehículo asociado al contacto del usuario (desde Fleet)
-   - La tarjeta asociada al vehículo
-4. **Completar Viaje**: Agregar origen, destino y otros detalles
-5. **Iniciar Viaje**: El sistema consume automáticamente el crédito
+Validar saldo con lo que ya tienes (balance_logical + validaciones de card_credit).
 
-## Instrucciones de Migración
+Para viajes dropoff (no origen de zona) → no hacer consumo.
 
-### Antes de la Actualización
+Esto respeta tu esquema: el consumo se registra con driverpro.card_credit (no toco tu legacy movement), y el viaje solo marca si requiere recarga.
 
-1. **Exportar datos de asignaciones** (si es necesario):
+1.2 “Entré a zona a buscar cliente (≤2h)” — sin crear un modelo nuevo
 
-   ```
-   Menú: DriverPro > Operaciones > Asignaciones
-   Exportar: Lista → Exportar → CSV/Excel
-   ```
+Usaremos solo driverpro.card_credit en borrador para no introducir tablas nuevas:
 
-2. **Verificar asignaciones en Fleet**:
-   - Ir a **Fleet > Configuración > Vehículos**
-   - Asegurar que cada vehículo tenga asignado un conductor
-   - Campo: "Conductor" debe estar lleno para cada vehículo activo
+Nuevos campos en driverpro.card_credit:
 
-### Después de la Actualización
+is_wait_entry (Boolean) → marca que el movimiento corresponde a “entrada para buscar cliente”.
 
-1. **Verificar configuración de usuarios y contactos**:
+wait_started_at (Datetime)
 
-   - **Configuración > Usuarios y Compañías > Usuarios**
-   - Cada chofer debe ser un usuario activo
-   - Cada usuario debe tener un contacto asociado (campo "Contacto relacionado")
+wait_limit_minutes (Integer, default p. ej. 120; configurable por ir.config_parameter)
 
-2. **Verificar asignaciones en Fleet**:
+Flujo:
 
-   - **Fleet > Configuración > Vehículos**
-   - Cada vehículo debe tener un conductor asignado (contacto, no usuario)
-   - El conductor debe corresponder al contacto del usuario chofer
+Botón en app del chofer: “Entré a zona a buscar” → crea UN card_credit:
 
-3. **Verificar tarjetas activas**:
+move_type = 'consume', amount = -1, state = 'draft',
 
-   - **DriverPro > Tarjetas > Todas las Tarjetas**
-   - Confirmar que cada vehículo tenga una tarjeta activa
+is_wait_entry = True, wait_started_at = now, wait_limit_minutes = config.
 
-4. **Probar creación de viajes**:
-   - **DriverPro > Operaciones > Viajes**
-   - Crear un viaje de prueba seleccionando un chofer (usuario)
-   - Verificar que vehículo y tarjeta se asignen automáticamente
+Botón: “Conseguí cliente” → al crear/iniciar un viaje de origen en zona, reutilizas ese draft:
 
-### ⚠️ Configuración Requerida para Choferes
+Lo vinculas al viaje (related_trip_id) y lo pones en posted. (Si el viaje ya posteó su propio consume, simplemente cancela/elimina el draft para no duplicar).
 
-**IMPORTANTE**: Para que un usuario pueda ser chofer, debe cumplir:
+Botón: “Salir sin cliente”:
 
-1. **Usuario activo** en el sistema
-2. **Contacto asociado** (Partner) vinculado al usuario
-3. **Vehículo asignado** al contacto en Fleet
-4. **Tarjeta activa** asignada al vehículo
+Si now - wait_started_at ≤ wait_limit_minutes → cancelar (eliminar) el draft (no afecta saldo y deja rastro en chatter si quieres).
 
-**Ejemplo de configuración**:
+Si > wait_limit_minutes → postear el consume (queda cobrada la recarga).
 
-```
-Usuario: Juan Pérez (res.users)
-├── Contacto asociado: Juan Pérez (res.partner)
-    └── Vehículo en Fleet: Taxi 001
-        └── Tarjeta: CARD-001 (activa)
-```
+Sin cron obligatorio: todo se resuelve con las acciones del chofer. (Opcional: un aviso a t-15/t-5 podría añadirse luego).
 
-## Beneficios del Nuevo Sistema
+Ventaja: no agregamos un modelo de “sesión” ni “log”; el único registro es un card_credit en borrador que se convierte o se desecha según el desenlace. Tu vista y seguridad de card_credit ya están avanzadas.
 
-### 🚀 Simplicidad
+2. Cambios por archivo (breve y puntual)
+   2.1 models/trip.py
 
-- Un solo lugar para gestionar asignaciones (Fleet)
-- Menos pasos para crear viajes
-- Menor posibilidad de errores
+Añadir is_recharge_trip = fields.Boolean(...).
 
-### 🔄 Automatización
+En el método que ya uses para “iniciar/confirmar” viaje (p. ej. action_start o similar):
 
-- Asignación automática de vehículo al seleccionar conductor
-- Asignación automática de tarjeta al seleccionar vehículo
-- Validaciones automáticas de consistencia
+Si is_recharge_trip:
 
-### 📱 Mejor UX
+Buscar si existe un card_credit draft con is_wait_entry=True del mismo chofer/vehículo/tarjeta reciente → si sí, completar ese (set related_trip_id y post()).
 
-- Interfaz más limpia y clara
-- Mensajes de ayuda y advertencias mejorados
-- Flujo de trabajo más intuitivo
+Si no existe draft → crear nuevo card_credit consume posted con related_trip_id=this.
 
-## Validaciones Automáticas
+No tocar legacy driverpro.card.movement.
 
-El sistema ahora incluye validaciones mejoradas:
+2.2 models/card_credit.py (ya existe)
 
-- **Conductor sin vehículo**: Advertencia si el conductor no tiene vehículo asignado en Fleet
-- **Vehículo sin tarjeta**: Advertencia si el vehículo no tiene tarjeta activa
-- **Tarjeta sin créditos**: Advertencia si la tarjeta no tiene créditos suficientes
-- **Consistencia**: Validación automática de la relación conductor-vehículo
+Agregar campos: is_wait_entry, wait_started_at, wait_limit_minutes.
 
-## Archivos de Respaldo
+Pequeñas ayudas:
 
-Los siguientes archivos fueron respaldados (no eliminados):
+Método start_wait(card_id, limit_minutes) → crea el draft consume con flags.
 
-- `models/driverpro_assignment.py.bak`
-- `views/driverpro_assignment_views.xml.bak`
+Método finish_wait(success: bool):
 
-Estos archivos contienen el código anterior por si necesitas referencias.
+Si success → post y opcionalmente setear related_trip_id si ya lo tienes.
 
-## Soporte
+Si sin cliente y dentro de tiempo → unlink (draft).
 
-Para dudas o problemas con la migración, contactar al equipo de desarrollo.
+Si sin cliente y fuera de tiempo → post (consume).
+
+Mantener tus validaciones actuales (monto negativo para consume, no eliminar posted, etc.).
+
+2.3 Vistas (mínimos)
+
+Trip form: checkbox “Viaje con recarga (origen en zona)”.
+
+Driver app (portal/API):
+
+Endpoint POST /wait/start → llama a CardCredit.start_wait(...).
+
+Endpoint POST /wait/finish → indica success=True/False.
+
+(Opcional) un contador simple en UI, sin lógica server-side adicional.
+
+2.4 Parámetros (ir.config_parameter)
+
+zone.wait_limit_minutes (default 120).
+
+(Opcional) zone.wait_alerts_minutes (p. ej. “15,5”) — solo si más adelante quieres notificaciones.
+
+3. Reglas de negocio resultantes (simples)
+
+Viaje con recarga:
+
+Checkbox ON → consume -1 con card_credit (posted). Si existía draft por “entré a zona”, se reutiliza.
+
+Entré a zona a buscar (≤2h):
+
+Crea draft consume (-1) con marca de espera y timestamp.
+
+Si consiguió cliente → ese draft se postea (o se reutiliza al marcar viaje con recarga).
+
+Si sale sin cliente:
+
+Dentro del límite → se elimina el draft (no afecta saldo).
+
+Fuera del límite → se postea el consume (se cobra).
+
+4. Por qué esto cumple con lo que pediste
+
+Formularios sencillos: solo un checkbox en viaje y dos botones en el flujo del chofer (“Entré a zona”, “Salir sin cliente/Conseguí cliente”).
+
+Sin nuevos modelos: nos apoyamos en lo que ya tienes:
+
+Tarjeta: driverpro.card con saldo lógico y smart buttons.
+
+Movimientos: driverpro.card_credit con draft/posted, relación a viaje y vistas listas.
+
+Auditable: los consumos confirmados quedan en posted; los intentos sin cliente no afectan saldo y pueden borrarse al ser drafts (si quieres rastro, podemos postear un mensaje en chatter antes de borrar).
+
+5. Checklist final (rápido)
+
+Campo is_recharge_trip en driverpro.trip + lógica de consumo al iniciar/confirmar viaje.
+
+Campos is_wait_entry, wait_started_at, wait_limit_minutes en driverpro.card_credit + helpers start_wait/finish_wait.
+
+Endpoint(s) mínimos para chofer: start wait / finish wait.
+
+Param zone.wait_limit_minutes (default 120).
+
+Vista de viaje: checkbox “Viaje con recarga”.
+
+(Opcional) UI contador en PWA y aviso simple (sin cron).
