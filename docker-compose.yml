@@ -3,29 +3,42 @@ services:
     container_name: odoo-racoondevs-db
     image: postgres:15
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-postgres}
-      POSTGRES_USER: ${POSTGRES_USER:-odoo_db}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-odoo_db}
-      PGDATA: /var/lib/postgresql/data/pgdata
+      POSTGRES_DB: postgres
+      POSTGRES_USER: odoo_db
+      POSTGRES_PASSWORD: odoo_db
+      # Quita PGDATA para usar el layout estándar
+      # (si quieres, puedes ponerlo, pero no es necesario)
     volumes:
-      - ./odoo-source/postgres:/var/lib/postgresql/data
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U odoo_db -d postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
     restart: unless-stopped
 
   odoo:
     container_name: odoo-racoondevs-odoo
     image: odoo:18.0
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     ports:
-      - "127.0.0.1:18069:8069" # HTTP
-      - "127.0.0.1:18072:8072" # Bus (evented/WebSocket)
+      - "127.0.0.1:18069:8069"
+      - "127.0.0.1:18072:8072"
     environment:
       ADDONS_PATH: /mnt/extra-addons
-      ENVIRONMENT: ${ENVIRONMENT:-development}
-      ODOO_RC: /etc/odoo/${ODOO_CONFIG_FILE:-odoo.dev.conf}
-    command: ["odoo", "-c", "/etc/odoo/${ODOO_CONFIG_FILE:-odoo.dev.conf}"]
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      ODOO_CONFIG_FILE: odoo.conf
+      ODOO_RC: /etc/odoo/odoo.conf
+    command: >
+      sh -c "odoo -c /etc/odoo/${ODOO_CONFIG_FILE:-odoo.conf}"
     volumes:
       - ./config:/etc/odoo
       - ./custom-addons:/mnt/extra-addons
-      - ./odoo-source/odoo:/var/lib/odoo
+      - odoo-data:/var/lib/odoo
     restart: unless-stopped
+
+volumes:
+  db-data:
+  odoo-data:
