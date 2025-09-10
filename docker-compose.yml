@@ -6,10 +6,9 @@ services:
       POSTGRES_DB: postgres
       POSTGRES_USER: odoo_db
       POSTGRES_PASSWORD: odoo_db
-      # Quita PGDATA para usar el layout estándar
-      # (si quieres, puedes ponerlo, pero no es necesario)
+      # Usa el layout estándar (sin PGDATA)
     volumes:
-      - db-data:/var/lib/postgresql/data
+      - ./odoo_source/postgres:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U odoo_db -d postgres"]
       interval: 10s
@@ -36,9 +35,5 @@ services:
     volumes:
       - ./config:/etc/odoo
       - ./custom-addons:/mnt/extra-addons
-      - odoo-data:/var/lib/odoo
+      - ./odoo_source/odoo:/var/lib/odoo
     restart: unless-stopped
-
-volumes:
-  db-data:
-  odoo-data:
