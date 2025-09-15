@@ -181,14 +181,20 @@ export const useWebPush = () => {
   }, [isSubscribed, subscription]);
 
   const getStatus = useCallback(async () => {
+    // Evitar hacer requests si no está soportado o no hay usuario
+    if (!isSupported) {
+      return { success: false, subscriptions: [], count: 0 };
+    }
+
     try {
       const response = await pushAPI.status();
       return response;
     } catch (err) {
       console.warn("Error getting push status:", err);
+      // No logs tan agresivos para evitar spam
       return { success: false, subscriptions: [], count: 0 };
     }
-  }, []);
+  }, [isSupported]);
 
   const testNotification = useCallback(async () => {
     if (!isSubscribed) {

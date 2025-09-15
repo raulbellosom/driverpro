@@ -32,17 +32,18 @@ const PushNotificationButton = ({
 
   // Cargar estado al montar el componente
   useEffect(() => {
-    if (isSubscribed) {
+    if (isSubscribed && isSupported) {
       loadStatus();
     }
-  }, [isSubscribed]);
+  }, [isSubscribed, isSupported]);
 
   const loadStatus = async () => {
     try {
       const statusData = await getStatus();
       setStatus(statusData);
     } catch (err) {
-      console.warn("Error loading push status:", err);
+      // Silenciar errores para evitar loops
+      console.warn("Error loading push status:", err.message);
     }
   };
 

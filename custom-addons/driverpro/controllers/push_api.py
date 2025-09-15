@@ -11,7 +11,7 @@ _logger = logging.getLogger(__name__)
 class DriverProPushAPI(http.Controller):
     """Controlador para manejar suscripciones Web Push"""
 
-    @http.route('/driverpro/api/push/subscribe', type='json', auth='user', methods=['POST'], csrf=False)
+    @http.route('/driverpro/api/push/subscribe', type='json', auth='user', methods=['POST', 'GET'], csrf=False)
     def push_subscribe(self, **kw):
         """Suscribir un dispositivo a notificaciones push"""
         try:
@@ -47,7 +47,7 @@ class DriverProPushAPI(http.Controller):
                 'error': f'Error interno: {str(e)}'
             }
 
-    @http.route('/driverpro/api/push/unsubscribe', type='json', auth='user', methods=['POST'], csrf=False)
+    @http.route('/driverpro/api/push/unsubscribe', type='json', auth='user', methods=['POST', 'GET'], csrf=False)
     def push_unsubscribe(self, **kw):
         """Desuscribir un dispositivo de notificaciones push"""
         try:
@@ -83,7 +83,7 @@ class DriverProPushAPI(http.Controller):
                 'error': f'Error interno: {str(e)}'
             }
 
-    @http.route('/driverpro/api/push/status', type='json', auth='user', methods=['POST'], csrf=False)
+    @http.route('/driverpro/api/push/status', type='json', auth='user', methods=['POST', 'GET'], csrf=False)
     def push_status(self, **kw):
         """Obtener estado de suscripciones push del usuario"""
         try:

@@ -14,7 +14,9 @@ export default defineConfig({
       filename: "sw.js",
       registerType: "autoUpdate",
       devOptions: {
-        enabled: false, // Deshabilitar en desarrollo para evitar conflictos
+        enabled: true,
+        type: "module",
+        navigateFallback: undefined,
       },
       injectManifest: {
         swDest: "dist/sw.js",
