@@ -18,7 +18,10 @@ services:
 
   odoo:
     container_name: odoo-racoondevs-odoo
-    image: odoo:18.0
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    image: odoo-driverpro:18-push
     depends_on:
       db:
         condition: service_healthy
