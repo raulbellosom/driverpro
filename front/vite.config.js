@@ -9,80 +9,96 @@ export default defineConfig({
     react(),
     tailwindcss(),
     VitePWA({
+      strategies: "injectManifest",
+      srcDir: "src",
+      filename: "sw.js",
       registerType: "autoUpdate",
-      includeAssets: ["favicon.ico", "apple-touch-icon.png", "favicon.svg"],
+      devOptions: {
+        enabled: false, // Deshabilitar en desarrollo para evitar conflictos
+      },
+      injectManifest: {
+        swDest: "dist/sw.js",
+      },
+      workbox: {
+        globPatterns: ["**/*.{js,css,html,ico,png,svg,webmanifest}"],
+      },
+      includeAssets: [
+        "favicon.ico",
+        "apple-touch-icon.png",
+        "favicon.svg",
+        "logo.png",
+        "web-app-manifest-192x192.png",
+        "web-app-manifest-512x512.png",
+      ],
       manifest: {
-        name: "Driver Pro - Chofer",
+        name: "Driver Pro - Aplicación para Choferes",
         short_name: "Driver Pro",
-        description: "Aplicación para choferes de Driver Pro",
+        description:
+          "Aplicación móvil para gestión de viajes y tarjetas de Driver Pro",
         theme_color: "#c5f0a4",
-        background_color: "#eff7d0",
+        background_color: "#ffffff",
         display: "standalone",
-        orientation: "portrait",
+        orientation: "portrait-primary",
         scope: "/",
         start_url: "/",
+        id: "/",
+        lang: "es-MX",
+        categories: ["productivity", "business", "travel"],
+        prefer_related_applications: false,
         icons: [
           {
             src: "web-app-manifest-192x192.png",
             sizes: "192x192",
             type: "image/png",
+            purpose: "any maskable",
           },
           {
             src: "web-app-manifest-512x512.png",
             sizes: "512x512",
             type: "image/png",
+            purpose: "any maskable",
           },
-        ],
-      },
-      workbox: {
-        runtimeCaching: [
           {
-            urlPattern: /^\/api\/.*$/i,
-            handler: "NetworkFirst",
-            options: {
-              cacheName: "driverpro-api",
-              expiration: { maxEntries: 100, maxAgeSeconds: 60 * 60 * 24 }, // 1 día
-            },
+            src: "apple-touch-icon.png",
+            sizes: "180x180",
+            type: "image/png",
+            purpose: "any",
+          },
+          {
+            src: "favicon-96x96.png",
+            sizes: "96x96",
+            type: "image/png",
+            purpose: "any",
           },
         ],
       },
-      devOptions: { enabled: true }, // para registrar el SW en dev si lo necesitas
     }),
   ],
 
   server: {
     proxy: {
-      // Odoo HTTP normal (8069 → 18069)
       "/web": {
         target: "http://127.0.0.1:18069",
         changeOrigin: true,
         secure: false,
       },
-
-      // Facade del addon: /api/* → http://127.0.0.1:18069/driverpro/api/*
       "/api": {
         target: "http://127.0.0.1:18069/driverpro",
         changeOrigin: true,
         secure: false,
         rewrite: (p) => p.replace(/^\/api/, "/api"),
       },
-
-      // Bus "evented" (long-poll legacy) en Odoo 17/18 → usar puerto principal 18069
       "/longpolling": {
         target: "http://127.0.0.1:18069",
         changeOrigin: true,
         secure: false,
       },
-
-      // WebSocket nativo del bus (para cuando quieras migrarte a WS)
       "/websocket": {
         target: "http://127.0.0.1:18072",
         ws: true,
         changeOrigin: true,
         secure: false,
       },
-
-      // Opcional: si en algún punto llamas a /driverpro/api/* directamente
       "/driverpro": {
         target: "http://127.0.0.1:18069",
         changeOrigin: true,

@@ -6,6 +6,7 @@ import { useNotifications } from "../hooks/useNotifications";
 import { useOdooBus } from "../hooks/useOdooBus";
 import NotificationPanel from "./NotificationPanel";
 import NotificationSystem from "./NotificationSystem";
+import PushNotificationButton from "./PushNotificationButton";
 import { RefreshCw, LogOut, User, Menu } from "lucide-react";
 
 const AppNavigation = ({ onRefresh, refreshing = false }) => {
@@ -115,6 +116,9 @@ const AppNavigation = ({ onRefresh, refreshing = false }) => {
 
               {/* Info del usuario */}
               <div className="hidden sm:flex items-center space-x-3 pl-3 border-l border-gray-200">
+                {/* Botón de notificaciones push */}
+                <PushNotificationButton showLabel={false} className="mr-3" />
+
                 <div className="flex items-center space-x-2">
                   <div className="w-8 h-8 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center">
                     <User className="w-4 h-4 text-gray-600" />
@@ -136,7 +140,9 @@ const AppNavigation = ({ onRefresh, refreshing = false }) => {
               </div>
 
               {/* Menú móvil */}
-              <div className="sm:hidden">
+              <div className="sm:hidden flex items-center space-x-2">
+                <PushNotificationButton showLabel={false} size="sm" />
+
                 <motion.button
                   whileHover={{ scale: 1.1 }}
                   whileTap={{ scale: 0.9 }}

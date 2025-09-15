@@ -405,14 +405,23 @@ class DriverproTrip(models.Model):
                         'timestamp': fields.Datetime.now().isoformat()
                     }
                     
-                    # Enviar notificación específica al nuevo usuario
+                    # Enviar notificación específica al nuevo usuario (bus)
                     self.env['bus.bus']._sendone(
                         f'driverpro_notifications_{trip.driver_id.id}',
                         'notification',
                         bus_message
                     )
                     
-                    _logger.info(f"Notificación de reasignación enviada al usuario {trip.driver_id.id} para viaje {trip.name}")
+                    # Enviar notificación push
+                    from ..utils.push import send_web_push, create_trip_notification_payload
+                    push_payload = create_trip_notification_payload(
+                        trip, 
+                        'assigned_trip',
+                        f'Se te ha reasignado el viaje {trip.name}'
+                    )
+                    send_web_push(self.env, trip.driver_id, push_payload)
+                    
+                    _logger.info(f"Notificaciones (bus + push) de reasignación enviadas al usuario {trip.driver_id.id} para viaje {trip.name}")
                     
                 except Exception as e:
                     _logger.error(f"Error enviando notificación de reasignación: {str(e)}")
@@ -1183,14 +1192,23 @@ class DriverproTrip(models.Model):
                 'timestamp': fields.Datetime.now().isoformat()
             }
             
-            # Enviar notificación específica al usuario
+            # Enviar notificación específica al usuario (bus)
             self.env['bus.bus']._sendone(
                 f'driverpro_notifications_{self.driver_id.id}',
                 'notification',
                 bus_message
             )
             
-            _logger.info(f"Notificación de viaje programado enviada al usuario {self.driver_id.id} para viaje {self.name}")
+            # Enviar notificación push
+            from ..utils.push import send_web_push, create_trip_notification_payload
+            push_payload = create_trip_notification_payload(
+                self, 
+                'scheduled_trip_reminder',
+                f'Tu viaje inicia en {time_formatted}. De {self.origin} a {self.destination}'
+            )
+            send_web_push(self.env, self.driver_id, push_payload)
+            
+            _logger.info(f"Notificaciones (bus + push) de viaje programado enviadas al usuario {self.driver_id.id} para viaje {self.name}")
             
         except Exception as e:
             _logger.error(f"Error enviando notificación de viaje programado: {str(e)}")

@@ -12,6 +12,7 @@
                     <field name="vehicle_id"/>
                     <field name="balance" sum="Total Saldo"/>
                     <field name="total_recharges" sum="Total Recargas"/>
+                    <field name="total_payment_amount" sum="Total Pagado (MXN)"/>
                     <field name="total_consumption" sum="Total Consumido"/>
                     <field name="recharge_count"/>
                     <field name="trip_count"/>
@@ -58,6 +59,7 @@
                                 <field name="balance" widget="monetary"/>
                                 <field name="total_recharges" widget="monetary"/>
                                 <field name="total_consumption" widget="monetary"/>
+                                <field name="total_payment_amount" widget="monetary"/>
                             </group>
                         </group>
 
@@ -68,6 +70,7 @@
                                         <field name="name"/>
                                         <field name="recharge_date"/>
                                         <field name="amount"/>
+                                        <field name="payment_amount"/>
                                         <field name="state"/>
                                     </list>
                                 </field>
@@ -107,6 +110,7 @@
                     <field name="balance"/>
                     <field name="active"/>
                     <field name="total_recharges"/>
+                    <field name="total_payment_amount"/>
                     <field name="total_consumption"/>
                     <templates>
                         <t t-name="card">
@@ -143,6 +147,13 @@
                                             <br/>
                                             <strong>
                                                 <field name="total_recharges" widget="monetary"/>
+                                            </strong>
+                                        </div>
+                                        <div class="text-info">
+                                            <small>Pagado (MXN)</small>
+                                            <br/>
+                                            <strong>
+                                                <field name="total_payment_amount" widget="monetary"/>
                                             </strong>
                                         </div>
                                         <div class="text-danger">
@@ -222,6 +233,7 @@
                     <field name="card_id"/>
                     <field name="recharge_date"/>
                     <field name="amount"/>
+                    <field name="payment_amount" sum="Total Pagado (MXN)"/>
                     <field name="confirmed_amount" sum="Total Confirmado" invisible="1"/>
                     <field name="state"/>
                     <field name="invoice_number"/>
@@ -255,6 +267,7 @@
                             <group name="basic_info" string="Información de Recarga">
                                 <field name="card_id" options="{'no_create': True}" readonly="is_readonly"/>
                                 <field name="amount" widget="integer" readonly="is_readonly"/>
+                                <field name="payment_amount" widget="monetary" options="{'currency_field': 'currency_id'}" readonly="is_readonly"/>
                                 <field name="recharge_date" readonly="is_readonly"/>
                                 <field name="company_id" groups="base.group_multi_company" readonly="is_readonly"/>
                             </group>

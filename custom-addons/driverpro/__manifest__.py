@@ -39,6 +39,7 @@
         'data/driverpro_sequence.xml',
         'data/driverpro_data.xml',
         'data/driverpro_cron.xml',
+        'data/driverpro_vapid_config.xml',
         
         # Views - Las acciones primero, luego los menús
         'views/driverpro_card_views.xml',
@@ -49,6 +50,9 @@
     ],
     'demo': [],
     'qweb': [],
+    'external_dependencies': {
+        'python': ['pywebpush', 'cryptography'],
+    },
     'installable': True,
     'auto_install': False,
     'application': True,

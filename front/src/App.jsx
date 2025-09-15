@@ -10,6 +10,9 @@ import LoginPageSimple from "./pages/LoginPageSimple";
 import HomePage from "./pages/HomePage";
 import TripPage from "./pages/TripPage";
 import AppNavigation from "./components/AppNavigation";
+import InstallPWAPrompt from "./components/InstallPWAPrompt";
+import PWAStatus from "./components/PWAStatus";
+import NotificationPermissionGuide from "./components/NotificationPermissionGuide";
 import { useState } from "react";
 import { Toaster } from "react-hot-toast";
 
@@ -119,6 +122,15 @@ function App() {
                 },
               }}
             />
+
+            {/* Prompt para instalar PWA */}
+            <InstallPWAPrompt />
+
+            {/* Guía de permisos de notificación */}
+            <NotificationPermissionGuide />
+
+            {/* Estado de PWA */}
+            <PWAStatus />
           </div>
         </Router>
       </AuthProvider>

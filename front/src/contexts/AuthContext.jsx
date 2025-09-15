@@ -17,6 +17,7 @@ export const AuthProvider = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [pushAutoSubscribed, setPushAutoSubscribed] = useState(false);
 
   const queryClient = useQueryClient();
   const { data: sessionData, isLoading, error, refetch } = useSessionInfo();
@@ -26,13 +27,52 @@ export const AuthProvider = ({ children }) => {
       if (sessionData?.result?.uid && !error) {
         setIsAuthenticated(true);
         setUser(sessionData.result);
+
+        // Auto-suscribir a notificaciones push después del login
+        // (solo una vez por sesión)
+        if (!pushAutoSubscribed) {
+          autoSubscribePushNotifications();
+          setPushAutoSubscribed(true);
+        }
       } else {
         setIsAuthenticated(false);
         setUser(null);
+        setPushAutoSubscribed(false);
       }
       setLoading(false);
     }
-  }, [sessionData, isLoading, error]);
+  }, [sessionData, isLoading, error, pushAutoSubscribed]);
+
+  const autoSubscribePushNotifications = async () => {
+    // Solo intentar si el navegador soporta push y no está en desarrollo local
+    if (
+      "serviceWorker" in navigator &&
+      "PushManager" in window &&
+      "Notification" in window &&
+      window.location.protocol === "https:"
+    ) {
+      try {
+        // Importar dinámicamente para evitar errores en SSR
+        const { useWebPush } = await import("../hooks/useWebPush");
+
+        // Solo auto-suscribir si los permisos ya están concedidos
+        if (Notification.permission === "granted") {
+          // Verificar si ya hay una suscripción activa
+          const registration = await navigator.serviceWorker.ready;
+          const existingSubscription =
+            await registration.pushManager.getSubscription();
+
+          if (!existingSubscription) {
+            console.log("Auto-suscribiendo a notificaciones push...");
+            // Aquí podrías llamar al hook, pero como estamos en un contexto,
+            // es mejor mostrar una notificación al usuario para que active manualmente
+          }
+        }
+      } catch (error) {
+        console.warn("Error en auto-suscripción push:", error);
+      }
+    }
+  };
 
   const login = async (email, password) => {
     try {
@@ -57,6 +97,7 @@ export const AuthProvider = ({ children }) => {
       // Siempre limpiar el estado local
       setIsAuthenticated(false);
       setUser(null);
+      setPushAutoSubscribed(false);
       // Limpiar todas las queries en caché
       queryClient?.clear();
     }

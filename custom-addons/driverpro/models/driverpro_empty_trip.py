@@ -341,6 +341,24 @@ class DriverproEmptyTrip(models.Model):
             self._notify_driver('warning', 
                                f'⚠️ Tiempo restante: {minutes_remaining} min',
                                f'Tu búsqueda {self.name} está por expirar')
+            
+            # Enviar notificación push
+            try:
+                from ..utils.push import send_web_push, create_trip_notification_payload
+                notification_type = f'empty_trip_{minutes_remaining}'
+                push_message = f'Te quedan {minutes_remaining} minutos para terminar la búsqueda.'
+                
+                push_payload = create_trip_notification_payload(
+                    self, 
+                    notification_type,
+                    push_message
+                )
+                send_web_push(self.env, self.driver_id, push_payload)
+                
+                _logger.info(f"Alerta push enviada al chofer {self.driver_id.login}: {minutes_remaining} min restantes")
+                
+            except Exception as e:
+                _logger.error(f"Error enviando alerta push: {str(e)}")
 
     def _notify_driver(self, notification_type, title, body, extra_data=None):
         """Envía notificación al conductor vía bus"""

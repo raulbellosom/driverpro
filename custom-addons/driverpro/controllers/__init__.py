@@ -2,3 +2,4 @@
 
 from . import main
 from . import notifications
+from . import push_api

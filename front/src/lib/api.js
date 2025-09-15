@@ -518,4 +518,24 @@ export const busAPI = {
   },
 };
 
+/**
+ * APIs para notificaciones push
+ */
+export const pushAPI = {
+  subscribe: async (payload) => {
+    const response = await rpc("/driverpro/api/push/subscribe", payload);
+    return response.data;
+  },
+
+  unsubscribe: async (payload) => {
+    const response = await rpc("/driverpro/api/push/unsubscribe", payload);
+    return response.data;
+  },
+
+  status: async () => {
+    const response = await rpc("/driverpro/api/push/status", {});
+    return response.data;
+  },
+};
+
 export default api;

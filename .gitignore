@@ -47,5 +47,6 @@ Thumbs.db
 odoo-source/
 
 # odoo-source, ignora el contenido de postgress y odoo
-odoo-source/postgres/
-odoo-source/odoo/
+odoo_source/.*
+odoo_source/postgres/
+odoo_source/odoo/

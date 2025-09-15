@@ -51,6 +51,23 @@ class DriverproCard(models.Model):
         help="Total de recargas realizadas"
     )
     
+    # Nuevo campo: total gastado en recargas en pesos mexicanos
+    total_payment_amount = fields.Float(
+        string='Total Gastado (MXN)',
+        compute='_compute_totals',
+        store=True,
+        digits=(16, 2),
+        help="Total gastado en pesos mexicanos por recargas confirmadas"
+    )
+    
+    # Campo de moneda para widgets monetary
+    currency_id = fields.Many2one(
+        'res.currency',
+        string='Moneda',
+        default=lambda self: self.env.ref('base.MXN').id,
+        readonly=True
+    )
+    
     total_consumption = fields.Float(
         string='Total Consumido',
         compute='_compute_totals',
@@ -122,13 +139,14 @@ class DriverproCard(models.Model):
             total_out = sum(card.movement_ids.filtered(lambda m: m.movement_type == 'out').mapped('amount'))
             card.balance = total_in - total_out
 
-    @api.depends('recharge_ids.amount', 'recharge_ids.state', 'trip_ids.consumed_credits')
+    @api.depends('recharge_ids.amount', 'recharge_ids.payment_amount', 'recharge_ids.state', 'trip_ids.consumed_credits')
     def _compute_totals(self):
         """Calcula totales de recargas y consumo"""
         for card in self:
             # Solo sumar recargas confirmadas
             confirmed_recharges = card.recharge_ids.filtered(lambda r: r.state == 'confirmed')
             card.total_recharges = sum(confirmed_recharges.mapped('amount'))
+            card.total_payment_amount = sum(confirmed_recharges.mapped('payment_amount'))
             card.total_consumption = sum(card.trip_ids.filtered(lambda t: t.state in ['active', 'paused', 'done']).mapped('consumed_credits'))
 
     @api.depends('recharge_ids', 'trip_ids')
@@ -215,11 +233,57 @@ class DriverproCardRecharge(models.Model):
         help="Cantidad de créditos a recargar"
     )
     
+    # Nuevo campo: monto de pago en pesos mexicanos
+    payment_amount = fields.Float(
+        string='Monto de Pago (MXN)',
+        required=True,
+        digits=(16, 2),
+        help="Monto pagado en pesos mexicanos por la recarga",
+        tracking=True
+    )
+    
+    # Campo de moneda para el widget monetary
+    currency_id = fields.Many2one(
+        'res.currency',
+        string='Moneda',
+        default=lambda self: self.env.ref('base.MXN').id,
+        readonly=True
+    )
+    
+    @api.constrains('payment_amount')
+    def _check_payment_amount(self):
+        """Validar que el monto de pago sea positivo"""
+        for record in self:
+            if record.payment_amount < 0:
+                raise ValidationError('El monto de pago no puede ser negativo.')
+    
+    @api.constrains('amount', 'payment_amount', 'state')
+    def _check_readonly_fields_on_state_change(self):
+        """Validar que no se modifiquen campos críticos después de confirmar o cancelar"""
+        for record in self:
+            if record.state in ('confirmed', 'cancelled'):
+                # Si el registro ya existe en la base de datos, verificar cambios
+                if self._origin:
+                    if (self._origin.amount != record.amount or 
+                        self._origin.payment_amount != record.payment_amount):
+                        raise ValidationError(
+                            'No se puede modificar el monto de créditos o el monto de pago '
+                            'después de que la recarga ha sido confirmada o cancelada.'
+                        )
+    
     confirmed_amount = fields.Integer(
         string='Monto Confirmado',
         compute='_compute_confirmed_amount',
         store=False,
         help="Monto que cuenta para el total (solo si está confirmado)"
+    )
+    
+    confirmed_payment_amount = fields.Float(
+        string='Monto de Pago Confirmado (MXN)',
+        compute='_compute_confirmed_payment_amount',
+        store=False,
+        digits=(16, 2),
+        help="Monto de pago que cuenta para estadísticas (solo si está confirmado)"
     )
     
     recharge_date = fields.Datetime(
@@ -400,6 +464,15 @@ class DriverproCardRecharge(models.Model):
                 recharge.confirmed_amount = recharge.amount
             else:
                 recharge.confirmed_amount = 0
+
+    @api.depends('state', 'payment_amount')
+    def _compute_confirmed_payment_amount(self):
+        """Calcula el monto de pago que cuenta para estadísticas (solo confirmadas)"""
+        for recharge in self:
+            if recharge.state == 'confirmed':
+                recharge.confirmed_payment_amount = recharge.payment_amount
+            else:
+                recharge.confirmed_payment_amount = 0.0
 
     def action_confirm(self):
         """Confirma la recarga y crea el movimiento"""

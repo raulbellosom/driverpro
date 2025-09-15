@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+        <!-- Configuración VAPID para notificaciones Web Push -->
+        <record id="vapid_public_key" model="ir.config_parameter">
+            <field name="key">driverpro.vapid_public_key</field>
+            <field name="value">BOEecnq3Xa9xCQDGa5gBJ7BiWIJhy5EJ7gCDWi7xB4wyuxJgTgGVkK4mNlw51KhLbNKniepDty4xVdRneI1koaM</field>
+        </record>
+
+        <record id="vapid_private_key" model="ir.config_parameter">
+            <field name="key">driverpro.vapid_private_key</field>
+            <field name="value">yTBScTUcF_-lWjqCjivviBr4CQY-Xql5mM72zgKUr4U</field>
+        </record>
+
+        <record id="vapid_subject" model="ir.config_parameter">
+            <field name="key">driverpro.vapid_subject</field>
+            <field name="value">mailto:soporte@racoondevs.com</field>
+        </record>
+    </data>
+</odoo>
