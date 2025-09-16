@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useSessionInfo } from "../lib/queries";
 import { authAPI } from "../lib/api";
+import { useWebPush } from "../hooks/useWebPush";
 
 const AuthContext = createContext({});
 
@@ -17,7 +18,9 @@ export const AuthProvider = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [pushAutoSubscribed, setPushAutoSubscribed] = useState(false);
+  const [pushAutoSubscribed, setPushAutoSubscribed] = useState(
+    () => sessionStorage.getItem("push_auto_subscribed") === "true"
+  );
 
   const queryClient = useQueryClient();
   const { data: sessionData, isLoading, error, refetch } = useSessionInfo();
@@ -32,19 +35,20 @@ export const AuthProvider = ({ children }) => {
         // (solo una vez por sesión)
         if (!pushAutoSubscribed) {
           autoSubscribePushNotifications();
-          setPushAutoSubscribed(true);
         }
       } else {
         setIsAuthenticated(false);
         setUser(null);
+        // Limpiar flag cuando se desautentica
         setPushAutoSubscribed(false);
+        sessionStorage.removeItem("push_auto_subscribed");
       }
       setLoading(false);
     }
   }, [sessionData, isLoading, error, pushAutoSubscribed]);
 
   const autoSubscribePushNotifications = async () => {
-    // Solo intentar si el navegador soporta push y no está en desarrollo local
+    // Solo intentar si el navegador soporta push y estamos en HTTPS
     if (
       "serviceWorker" in navigator &&
       "PushManager" in window &&
@@ -52,21 +56,74 @@ export const AuthProvider = ({ children }) => {
       window.location.protocol === "https:"
     ) {
       try {
-        // Importar dinámicamente para evitar errores en SSR
-        const { useWebPush } = await import("../hooks/useWebPush");
+        // Verificar si ya hay una suscripción activa
+        const registration = await navigator.serviceWorker.ready;
+        const existingSubscription =
+          await registration.pushManager.getSubscription();
 
-        // Solo auto-suscribir si los permisos ya están concedidos
-        if (Notification.permission === "granted") {
-          // Verificar si ya hay una suscripción activa
-          const registration = await navigator.serviceWorker.ready;
-          const existingSubscription =
-            await registration.pushManager.getSubscription();
+        if (existingSubscription) {
+          console.log("Ya existe una suscripción de push activa");
+          return;
+        }
 
-          if (!existingSubscription) {
-            console.log("Auto-suscribiendo a notificaciones push...");
-            // Aquí podrías llamar al hook, pero como estamos en un contexto,
-            // es mejor mostrar una notificación al usuario para que active manualmente
+        // Solo proceder si los permisos están concedidos
+        let permission = Notification.permission;
+
+        if (permission === "default") {
+          // Solicitar permisos de manera silenciosa
+          permission = await Notification.requestPermission();
+        }
+
+        if (permission === "granted") {
+          console.log("Iniciando auto-suscripción a notificaciones push...");
+
+          // Importar el hook de manera directa para usar sus funciones
+          const { pushAPI } = await import("../lib/api");
+
+          // Obtener la clave pública VAPID
+          const vapidPublicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY;
+
+          if (!vapidPublicKey) {
+            console.warn("VAPID public key no configurada");
+            return;
           }
+
+          // Crear la suscripción
+          const urlBase64ToUint8Array = (base64String) => {
+            const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+            const base64 = (base64String + padding)
+              .replace(/-/g, "+")
+              .replace(/_/g, "/");
+
+            const rawData = window.atob(base64);
+            const outputArray = new Uint8Array(rawData.length);
+
+            for (let i = 0; i < rawData.length; ++i) {
+              outputArray[i] = rawData.charCodeAt(i);
+            }
+            return outputArray;
+          };
+
+          const pushSubscription = await registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
+          });
+
+          // Enviar suscripción al servidor
+          const response = await pushAPI.subscribe({
+            subscription: pushSubscription.toJSON(),
+            app: "driver",
+          });
+
+          if (response.success) {
+            console.log("✅ Auto-suscripción a push notifications exitosa");
+            setPushAutoSubscribed(true);
+            sessionStorage.setItem("push_auto_subscribed", "true");
+          } else {
+            console.warn("⚠️ Error en auto-suscripción:", response.error);
+          }
+        } else if (permission === "denied") {
+          console.info("ℹ️ Permisos de notificación denegados por el usuario");
         }
       } catch (error) {
         console.warn("Error en auto-suscripción push:", error);

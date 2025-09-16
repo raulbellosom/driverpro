@@ -98,6 +98,26 @@ export default defineConfig({
     }),
   ],
 
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Vendor libraries
+          vendor: ["react", "react-dom"],
+          router: ["react-router-dom"],
+          query: ["@tanstack/react-query"],
+          icons: ["lucide-react"],
+          form: ["react-hook-form", "@hookform/resolvers", "zod"],
+          utils: ["axios", "react-hot-toast", "motion", "idb-keyval"],
+          // UI libraries
+          ui: ["react-responsive"],
+        },
+      },
+    },
+    // Increase chunk size warning limit to 600KB
+    chunkSizeWarningLimit: 600,
+  },
+
   server: {
     proxy: {
       "/web": {

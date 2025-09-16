@@ -24,17 +24,7 @@ const PushNotificationButton = ({
     getStatus,
   } = useWebPush();
 
-  const [showDetails, setShowDetails] = useState(false);
   const [status, setStatus] = useState(null);
-
-  // Suscribir automáticamente al cargar el componente
-  useEffect(() => {
-    if (isSupported && !isSubscribed && permission !== "denied") {
-      subscribe({ app: "driver" }).catch((err) => {
-        console.warn("Error auto-subscribing to push notifications:", err);
-      });
-    }
-  }, [isSupported, isSubscribed, permission, subscribe]);
 
   // Cargar estado cuando está suscrito
   useEffect(() => {

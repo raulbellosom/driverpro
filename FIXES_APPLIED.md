@@ -54,6 +54,22 @@
 - **Clean UI**: Removed all references to `PWAStatus` from `App.jsx`
 - **Maintained functionality**: Kept the `InstallPWAPrompt` component as it provides actual value for PWA installation
 
+### 6. Fixed Build Warnings and Optimized Bundle Size ✅
+
+**Problem**: Production build showed warnings about dynamic imports and large bundle size.
+
+**Solutions Applied**:
+
+- **Fixed dynamic import warning**: Changed dynamic import of `useWebPush` in `AuthContext.jsx` to static import
+- **Code splitting optimization**: Added manual chunk splitting in `vite.config.js` to separate:
+  - Vendor libraries (React, React DOM)
+  - Router code (React Router)
+  - Query libraries (TanStack Query)
+  - Icons (Lucide React)
+  - Form libraries (React Hook Form, Zod)
+  - Utilities (Axios, React Hot Toast, etc.)
+- **Increased chunk size limit**: Set to 600KB to avoid unnecessary warnings for reasonably-sized chunks
+
 ## Additional Improvements Made
 
 ### Service Worker Enhancements
@@ -81,11 +97,12 @@
 
 ### Frontend Changes
 
-- `front/vite.config.js` - Enhanced PWA configuration
+- `front/vite.config.js` - Enhanced PWA configuration and build optimization
 - `front/src/sw.js` - Improved service worker with iOS support
 - `front/index.html` - Added iOS-specific meta tags
 - `front/src/components/PushNotificationButton.jsx` - Auto-subscription and simplified UI
 - `front/src/App.jsx` - Removed PWAStatus component
+- `front/src/contexts/AuthContext.jsx` - Fixed dynamic import to static import
 - `front/src/components/PWAStatus.jsx` - **DELETED** (no longer needed)
 
 ### Backend (Analyzed but not modified)

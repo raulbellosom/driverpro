@@ -523,18 +523,47 @@ export const busAPI = {
  */
 export const pushAPI = {
   subscribe: async (payload) => {
-    const response = await rpc("/driverpro/api/push/subscribe", payload);
-    return response.data;
+    try {
+      // Intentar con la ruta principal primero
+      const response = await rpc("/driverpro/api/push/subscribe", payload);
+      return response.data;
+    } catch (error) {
+      // Si falla (405), intentar con la ruta alternativa
+      if (error.response?.status === 405) {
+        console.log("Intentando ruta alternativa para push subscribe...");
+        const response = await rpc("/web/driverpro/push/subscribe", payload);
+        return response.data;
+      }
+      throw error;
+    }
   },
 
   unsubscribe: async (payload) => {
-    const response = await rpc("/driverpro/api/push/unsubscribe", payload);
-    return response.data;
+    try {
+      const response = await rpc("/driverpro/api/push/unsubscribe", payload);
+      return response.data;
+    } catch (error) {
+      if (error.response?.status === 405) {
+        console.log("Intentando ruta alternativa para push unsubscribe...");
+        const response = await rpc("/web/driverpro/push/unsubscribe", payload);
+        return response.data;
+      }
+      throw error;
+    }
   },
 
   status: async () => {
-    const response = await rpc("/driverpro/api/push/status", {});
-    return response.data;
+    try {
+      const response = await rpc("/driverpro/api/push/status", {});
+      return response.data;
+    } catch (error) {
+      if (error.response?.status === 405) {
+        console.log("Intentando ruta alternativa para push status...");
+        const response = await rpc("/web/driverpro/push/status", {});
+        return response.data;
+      }
+      throw error;
+    }
   },
 };
 
