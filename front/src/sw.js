@@ -7,6 +7,10 @@ import { cleanupOutdatedCaches, precacheAndRoute } from "workbox-precaching";
 cleanupOutdatedCaches();
 precacheAndRoute(self.__WB_MANIFEST);
 
+// Configuración específica para iOS
+const isIOSSafari =
+  /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+
 // Manejar notificaciones push
 self.addEventListener("push", (event) => {
   let data = {};
@@ -26,6 +30,8 @@ self.addEventListener("push", (event) => {
     vibrate: [100, 50, 100], // vibración en dispositivos compatibles
     requireInteraction: false, // no requiere interacción para desaparecer
     actions: data.actions || [], // acciones personalizadas si las hay
+    silent: false,
+    renotify: false,
   };
 
   // Agregar información adicional basada en el tipo
@@ -100,7 +106,38 @@ self.addEventListener("install", (event) => {
 // Manejar activación del SW
 self.addEventListener("activate", (event) => {
   console.log("Service Worker activating...");
-  event.waitUntil(self.clients.claim());
+  event.waitUntil(
+    Promise.all([
+      self.clients.claim(),
+      // Limpiar cachés antiguos
+      caches.keys().then((cacheNames) => {
+        return Promise.all(
+          cacheNames
+            .filter((cacheName) => {
+              // Mantener solo cachés necesarios
+              return (
+                !cacheName.startsWith("workbox-") &&
+                !cacheName.startsWith("driverpro-")
+              );
+            })
+            .map((cacheName) => caches.delete(cacheName))
+        );
+      }),
+    ])
+  );
+});
+
+// Manejar navegación offline (para iOS)
+self.addEventListener("fetch", (event) => {
+  // Solo manejar navegación para requests de HTML
+  if (event.request.mode === "navigate") {
+    event.respondWith(
+      fetch(event.request).catch(() => {
+        // Si falla la red, servir index.html desde cache
+        return caches.match("/index.html") || caches.match("/");
+      })
+    );
+  }
 });
 
 // Manejar sincronización en background (opcional)

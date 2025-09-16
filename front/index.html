@@ -2,9 +2,10 @@
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
+    <!-- Viewport optimizado para iOS -->
     <meta
       name="viewport"
-      content="width=device-width, initial-scale=1.0, user-scalable=no"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
     />
 
     <!-- Título -->
@@ -25,12 +26,22 @@
     <meta name="background-color" content="#ffffff" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta
+      name="apple-mobile-web-app-status-bar-style"
+      content="black-translucent"
+    />
     <meta name="apple-mobile-web-app-title" content="Driver Pro" />
     <meta name="application-name" content="Driver Pro" />
+    <meta name="msapplication-TileColor" content="#c5f0a4" />
+    <meta name="msapplication-config" content="/browserconfig.xml" />
+
+    <!-- iOS Specific -->
+    <meta name="apple-touch-fullscreen" content="yes" />
+    <meta name="format-detection" content="telephone=no" />
+    <link rel="apple-touch-startup-image" href="/apple-touch-icon.png" />
 
     <!-- PWA Manifest -->
-    <link rel="manifest" href="/site.webmanifest" />
+    <!-- El manifiesto será generado automáticamente por Vite PWA plugin -->
 
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website" />

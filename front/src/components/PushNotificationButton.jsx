@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from "react";
 import {
   Bell,
-  BellOff,
-  Settings,
   TestTube,
   CheckCircle,
   XCircle,
@@ -22,7 +20,6 @@ const PushNotificationButton = ({
     isLoading,
     error,
     subscribe,
-    unsubscribe,
     testNotification,
     getStatus,
   } = useWebPush();
@@ -30,7 +27,16 @@ const PushNotificationButton = ({
   const [showDetails, setShowDetails] = useState(false);
   const [status, setStatus] = useState(null);
 
-  // Cargar estado al montar el componente
+  // Suscribir automáticamente al cargar el componente
+  useEffect(() => {
+    if (isSupported && !isSubscribed && permission !== "denied") {
+      subscribe({ app: "driver" }).catch((err) => {
+        console.warn("Error auto-subscribing to push notifications:", err);
+      });
+    }
+  }, [isSupported, isSubscribed, permission, subscribe]);
+
+  // Cargar estado cuando está suscrito
   useEffect(() => {
     if (isSubscribed && isSupported) {
       loadStatus();
@@ -44,21 +50,6 @@ const PushNotificationButton = ({
     } catch (err) {
       // Silenciar errores para evitar loops
       console.warn("Error loading push status:", err.message);
-    }
-  };
-
-  const handleToggle = async () => {
-    try {
-      if (isSubscribed) {
-        await unsubscribe();
-        setStatus(null);
-      } else {
-        await subscribe({ app: "driver" });
-        await loadStatus();
-      }
-    } catch (err) {
-      // El error ya se maneja en el hook
-      console.error("Error toggling push notifications:", err);
     }
   };
 
@@ -90,54 +81,40 @@ const PushNotificationButton = ({
       return <Bell className="w-4 h-4 text-green-500" />;
     }
 
-    return <BellOff className="w-4 h-4 text-gray-400" />;
+    return <Bell className="w-4 h-4 text-gray-400" />;
   };
 
   const getStatusText = () => {
     if (error) return "Error";
     if (isSubscribed) return "Activas";
     if (permission === "denied") return "Bloqueadas";
-    return "Inactivas";
+    return "Activando...";
   };
 
   const getButtonText = () => {
-    if (isLoading) return "Procesando...";
-    if (isSubscribed) return "Desactivar Push";
-    return "Activar Push";
-  };
-
-  const getButtonColor = () => {
-    if (isSubscribed) {
-      return "bg-green-600 hover:bg-green-700 text-white";
-    }
-    return "bg-blue-600 hover:bg-blue-700 text-white";
+    if (isLoading) return "Cargando...";
+    if (error) return "Error";
+    if (isSubscribed) return "Notificaciones";
+    return "Activando...";
   };
 
   return (
     <div className={`relative ${className}`}>
-      {/* Botón principal */}
+      {/* Información de estado - sin botón de toggle */}
       <div className="flex items-center gap-2">
-        <button
-          onClick={handleToggle}
-          disabled={isLoading || permission === "denied"}
-          className={`
-            flex items-center gap-2 px-3 py-2 rounded-lg font-medium transition-colors
-            disabled:opacity-50 disabled:cursor-not-allowed
-            ${getButtonColor()}
-          `}
-        >
+        <div className="flex items-center gap-2 px-3 py-2 bg-gray-100 rounded-lg">
           {getStatusIcon()}
           {showLabel && <span className="text-sm">{getButtonText()}</span>}
-        </button>
+        </div>
 
-        {/* Botón de detalles */}
+        {/* Botón de prueba - solo mostrar si está suscrito */}
         {isSubscribed && (
           <button
-            onClick={() => setShowDetails(!showDetails)}
-            className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors"
-            title="Ver detalles"
+            onClick={handleTest}
+            className="p-2 rounded-lg bg-blue-100 hover:bg-blue-200 text-blue-600 transition-colors"
+            title="Enviar notificación de prueba"
           >
-            <Settings className="w-4 h-4" />
+            <TestTube className="w-4 h-4" />
           </button>
         )}
       </div>
@@ -151,7 +128,7 @@ const PushNotificationButton = ({
                 ? "bg-green-500"
                 : permission === "denied"
                 ? "bg-red-500"
-                : "bg-gray-400"
+                : "bg-yellow-500"
             }`}
           />
           <span className="text-xs text-gray-600">{getStatusText()}</span>
@@ -168,56 +145,14 @@ const PushNotificationButton = ({
         </div>
       )}
 
-      {/* Panel de detalles */}
-      {showDetails && isSubscribed && (
-        <div className="absolute top-full right-0 mt-2 w-80 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
-          <div className="p-4">
-            <h3 className="font-medium text-gray-900 mb-3">
-              Estado de Notificaciones Push
-            </h3>
-
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Estado:</span>
-                <span className="flex items-center gap-1 text-sm">
-                  <CheckCircle className="w-4 h-4 text-green-500" />
-                  Activadas
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Permisos:</span>
-                <span className="text-sm capitalize">{permission}</span>
-              </div>
-
-              {status && status.count > 0 && (
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">Dispositivos:</span>
-                  <span className="text-sm">{status.count}</span>
-                </div>
-              )}
-            </div>
-
-            <div className="mt-4 pt-3 border-t border-gray-200">
-              <button
-                onClick={handleTest}
-                className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm rounded-lg transition-colors"
-              >
-                <TestTube className="w-4 h-4" />
-                Prueba de Notificación
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Información para usuarios no soportados */}
-      {!isSupported && showLabel && (
-        <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded-lg">
+      {/* Información para permisos denegados */}
+      {permission === "denied" && (
+        <div className="mt-2 p-2 bg-orange-50 border border-orange-200 rounded-lg">
           <div className="flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 text-yellow-600" />
-            <span className="text-sm text-yellow-800">
-              Tu navegador no soporta notificaciones push
+            <AlertCircle className="w-4 h-4 text-orange-500" />
+            <span className="text-sm text-orange-700">
+              Las notificaciones están bloqueadas. Habilítalas en la
+              configuración del navegador.
             </span>
           </div>
         </div>

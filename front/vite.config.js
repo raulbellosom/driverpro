@@ -16,13 +16,30 @@ export default defineConfig({
       devOptions: {
         enabled: true,
         type: "module",
-        navigateFallback: undefined,
+        navigateFallback: "index.html",
       },
       injectManifest: {
         swDest: "dist/sw.js",
+        globDirectory: "dist",
+        globPatterns: ["**/*.{js,css,html,ico,png,svg,webmanifest}"],
+        maximumFileSizeToCacheInBytes: 5000000,
       },
       workbox: {
         globPatterns: ["**/*.{js,css,html,ico,png,svg,webmanifest}"],
+        maximumFileSizeToCacheInBytes: 5000000,
+        runtimeCaching: [
+          {
+            urlPattern: /^https:\/\/driverpro\.racoondevs\.com\//,
+            handler: "NetworkFirst",
+            options: {
+              cacheName: "api-cache",
+              expiration: {
+                maxEntries: 100,
+                maxAgeSeconds: 60 * 60 * 24, // 1 day
+              },
+            },
+          },
+        ],
       },
       includeAssets: [
         "favicon.ico",
@@ -31,6 +48,7 @@ export default defineConfig({
         "logo.png",
         "web-app-manifest-192x192.png",
         "web-app-manifest-512x512.png",
+        "favicon-96x96.png",
       ],
       manifest: {
         name: "Driver Pro - Aplicación para Choferes",
@@ -47,6 +65,9 @@ export default defineConfig({
         lang: "es-MX",
         categories: ["productivity", "business", "travel"],
         prefer_related_applications: false,
+        edge_side_panel: {
+          preferred_width: 400,
+        },
         icons: [
           {
             src: "web-app-manifest-192x192.png",
