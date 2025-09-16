@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useSessionInfo } from "../lib/queries";
-import { authAPI } from "../lib/api";
+import { authAPI, pushAPI } from "../lib/api";
 import { useWebPush } from "../hooks/useWebPush";
 
 const AuthContext = createContext({});
@@ -77,12 +77,8 @@ export const AuthProvider = ({ children }) => {
         if (permission === "granted") {
           console.log("Iniciando auto-suscripción a notificaciones push...");
 
-          // Importar el hook de manera directa para usar sus funciones
-          const { pushAPI } = await import("../lib/api");
-
           // Obtener la clave pública VAPID
           const vapidPublicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY;
-
           if (!vapidPublicKey) {
             console.warn("VAPID public key no configurada");
             return;
