@@ -473,11 +473,6 @@ export const driverAPI = {
   },
 };
 
-// Test API connection
-export const testAPI = {
-  test: () => api.get("/api/test"),
-};
-
 // Mantener compatibilidad con busAPI para el hook existente
 export const busAPI = {
   getUserInfo: async () => {
