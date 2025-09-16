@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
-import { testAPI } from "../lib/api";
 
 export default function LoginPageSimple() {
   const [credentials, setCredentials] = useState({
@@ -9,7 +8,6 @@ export default function LoginPageSimple() {
   });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
-  const [testResult, setTestResult] = useState(null);
 
   const { login } = useAuth();
 
@@ -18,16 +16,6 @@ export default function LoginPageSimple() {
       ...credentials,
       [e.target.name]: e.target.value,
     });
-  };
-
-  const handleTestConnection = async () => {
-    try {
-      setTestResult("Probando...");
-      const result = await testAPI.test();
-      setTestResult("✅ Conexión exitosa: " + JSON.stringify(result.data));
-    } catch (error) {
-      setTestResult("❌ Error de conexión: " + error.message);
-    }
   };
 
   const handleSubmit = async (e) => {
@@ -56,21 +44,6 @@ export default function LoginPageSimple() {
           />
           <h1 className="text-3xl font-bold text-[#2a2a2a] mb-2">DriverPro</h1>
           <p className="text-[#2a2a2a]/70">Inicia sesión para continuar</p>
-        </div>
-
-        {/* Test Connection Button */}
-        <div className="mb-6">
-          <button
-            onClick={handleTestConnection}
-            className="w-full bg-[#c5f0a4] text-[#2a2a2a] py-2 px-4 rounded-lg hover:bg-[#a9e978] transition-colors mb-2 border border-[#a9e978]/30"
-          >
-            🔧 Probar Conexión API
-          </button>
-          {testResult && (
-            <div className="text-xs p-2 bg-gray-100 rounded border">
-              {testResult}
-            </div>
-          )}
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
