@@ -12,7 +12,7 @@ export default defineConfig({
       strategies: "injectManifest",
       srcDir: "src",
       filename: "sw.js",
-      registerType: "autoUpdate",
+      registerType: "prompt", // Cambiar a prompt para mayor control
       devOptions: {
         enabled: true,
         type: "module",
@@ -41,6 +41,8 @@ export default defineConfig({
           },
         ],
       },
+      // Registro manual para evitar problemas en Safari
+      injectRegister: null,
       includeAssets: [
         "favicon.ico",
         "apple-touch-icon.png",

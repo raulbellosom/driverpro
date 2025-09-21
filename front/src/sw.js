@@ -100,7 +100,8 @@ self.addEventListener("notificationclick", (event) => {
 // Manejar instalación del SW
 self.addEventListener("install", (event) => {
   console.log("Service Worker installing...");
-  self.skipWaiting();
+  // No hacer skipWaiting automáticamente para evitar conflictos
+  // self.skipWaiting();
 });
 
 // Manejar activación del SW
@@ -108,16 +109,18 @@ self.addEventListener("activate", (event) => {
   console.log("Service Worker activating...");
   event.waitUntil(
     Promise.all([
-      self.clients.claim(),
-      // Limpiar cachés antiguos
+      // No hacer claim automáticamente para evitar conflictos en navegador
+      // self.clients.claim(),
+      // Limpiar cachés antiguos de forma más conservadora
       caches.keys().then((cacheNames) => {
         return Promise.all(
           cacheNames
             .filter((cacheName) => {
-              // Mantener solo cachés necesarios
+              // Solo eliminar cachés muy antiguos
               return (
-                !cacheName.startsWith("workbox-") &&
-                !cacheName.startsWith("driverpro-")
+                cacheName.startsWith("old-") ||
+                cacheName.startsWith("v1-") ||
+                cacheName.startsWith("deprecated-")
               );
             })
             .map((cacheName) => caches.delete(cacheName))
@@ -127,15 +130,45 @@ self.addEventListener("activate", (event) => {
   );
 });
 
-// Manejar navegación offline (para iOS)
+// Manejar navegación offline (muy conservador para evitar interferencias)
 self.addEventListener("fetch", (event) => {
-  // Solo manejar navegación para requests de HTML
-  if (event.request.mode === "navigate") {
+  // Solo interceptar en casos muy específicos
+  const url = new URL(event.request.url);
+
+  // No interceptar requests a localhost en desarrollo
+  if (url.hostname === "localhost" || url.hostname === "127.0.0.1") {
+    return;
+  }
+
+  // Solo manejar navegaciones HTML principales cuando estamos offline
+  if (
+    (event.request.mode === "navigate" &&
+      event.request.destination === "document" &&
+      url.pathname === "/") ||
+    url.pathname.startsWith("/trip/")
+  ) {
     event.respondWith(
-      fetch(event.request).catch(() => {
-        // Si falla la red, servir index.html desde cache
-        return caches.match("/index.html") || caches.match("/");
-      })
+      fetch(event.request)
+        .then((response) => {
+          // Si la respuesta es exitosa, devolverla tal como es
+          return response;
+        })
+        .catch(() => {
+          // Solo usar cache como último recurso cuando definitivamente no hay red
+          console.log(
+            "SW: Network failed for navigation, trying cache fallback"
+          );
+          return caches.match("/index.html").then((cachedResponse) => {
+            if (cachedResponse) {
+              return cachedResponse;
+            }
+            // Si no hay cache, devolver una respuesta básica
+            return new Response(
+              '<!DOCTYPE html><html><head><title>Driver Pro</title></head><body><div id="root">Cargando...</div></body></html>',
+              { headers: { "Content-Type": "text/html" } }
+            );
+          });
+        })
     );
   }
 });
