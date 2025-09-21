@@ -22,25 +22,63 @@ api.interceptors.response.use(
   }
 );
 
-// Helper para JSON-RPC (Odoo)
+// Helper para JSON-RPC (Odoo) - Mejorado para Safari iOS
 const rpc = async (path, params = {}) => {
-  const res = await fetch(path, {
-    method: "POST",
-    credentials: "include", // cookie de sesión Odoo
-    headers: {
-      "Content-Type": "application/json", // <-- IMPORTANTE
-      Accept: "application/json", // <-- útil en Safari
-      "X-Requested-With": "XMLHttpRequest",
-    },
-    body: JSON.stringify({ jsonrpc: "2.0", params: params || {} }), // JAMÁS undefined
-  });
+  try {
+    const requestBody = {
+      jsonrpc: "2.0",
+      params: params || {},
+      id: Math.random().toString(36), // Agregar ID único para debugging
+    };
 
-  // si Odoo devolviera HTML de error, lo verás aquí
-  if (!res.ok) {
-    const txt = await res.text();
-    throw new Error(`RPC ${path} ${res.status}: ${txt}`);
+    console.log(`🔍 RPC Request: ${path}`, requestBody);
+
+    const res = await fetch(path, {
+      method: "POST",
+      credentials: "include", // cookie de sesión Odoo
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        "X-Requested-With": "XMLHttpRequest",
+        // Headers adicionales para Safari iOS
+        "Cache-Control": "no-cache",
+        Pragma: "no-cache",
+      },
+      body: JSON.stringify(requestBody),
+    });
+
+    console.log(`📡 RPC Response: ${path}`, {
+      status: res.status,
+      statusText: res.statusText,
+      headers: Object.fromEntries(res.headers.entries()),
+    });
+
+    // Manejo más detallado de errores
+    if (!res.ok) {
+      let errorText;
+      try {
+        errorText = await res.text();
+      } catch (textError) {
+        errorText = `Unable to read response: ${textError.message}`;
+      }
+
+      console.error(`❌ RPC Error: ${path}`, {
+        status: res.status,
+        statusText: res.statusText,
+        responseText: errorText,
+      });
+
+      throw new Error(`RPC ${path} [${res.status}]: ${errorText}`);
+    }
+
+    const jsonResponse = await res.json();
+    console.log(`✅ RPC Success: ${path}`, jsonResponse);
+
+    return jsonResponse;
+  } catch (error) {
+    console.error(`💥 RPC Fatal Error: ${path}`, error);
+    throw error;
   }
-  return res.json();
 };
 
 /**
@@ -49,8 +87,37 @@ const rpc = async (path, params = {}) => {
 export const authAPI = {
   // Usar directamente JSON-RPC POST para obtener información de sesión
   async getSessionInfo() {
-    const { data } = await rpc("/web/session/get_session_info", {});
-    return data;
+    try {
+      console.log("🔑 Attempting to get session info...");
+      const response = await rpc("/web/session/get_session_info", {});
+
+      // Validar que la respuesta tenga la estructura esperada
+      if (!response || !response.result) {
+        console.warn(
+          "⚠️ Session info response missing result field:",
+          response
+        );
+        throw new Error("Invalid session response structure");
+      }
+
+      console.log("✅ Session info retrieved successfully:", response.result);
+      return response;
+    } catch (error) {
+      console.error("❌ Error getting session info:", error);
+
+      // Si es un error de red específico, proporcionar más contexto
+      if (error.message.includes("400")) {
+        throw new Error("Session authentication failed - please log in again");
+      }
+      if (error.message.includes("403")) {
+        throw new Error("Access forbidden - insufficient permissions");
+      }
+      if (error.message.includes("500")) {
+        throw new Error("Server error - please try again later");
+      }
+
+      throw error;
+    }
   },
 
   getDatabaseList: async () => {

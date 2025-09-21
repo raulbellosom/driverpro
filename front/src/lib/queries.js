@@ -50,8 +50,30 @@ export const useSessionInfo = () => {
   return useQuery({
     queryKey: queryKeys.auth,
     queryFn: authAPI.getSessionInfo,
-    retry: false,
+    retry: (failureCount, error) => {
+      // No reintentar si es un error de autenticación (400, 401, 403)
+      if (
+        error?.message?.includes("400") ||
+        error?.message?.includes("401") ||
+        error?.message?.includes("403")
+      ) {
+        console.log("🚫 Auth error detected, not retrying:", error.message);
+        return false;
+      }
+
+      // Reintentar máximo 2 veces para otros errores
+      return failureCount < 2;
+    },
     staleTime: 5 * 60 * 1000, // 5 minutos
+    gcTime: 10 * 60 * 1000, // 10 minutos
+    refetchOnWindowFocus: false, // Evitar refetch automático que puede causar errores
+    refetchOnReconnect: true,
+    onError: (error) => {
+      console.error("❌ Session info query error:", error);
+    },
+    onSuccess: (data) => {
+      console.log("✅ Session info query success:", data);
+    },
   });
 };
 

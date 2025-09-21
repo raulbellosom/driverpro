@@ -6,6 +6,7 @@ import {
   logPushSupportInfo,
   cleanupDevelopmentTools,
 } from "./utils/pushSupport";
+import "./utils/networkDebugger"; // Cargar debugger de red
 
 // Registro inteligente del Service Worker
 const registerSW = async () => {
