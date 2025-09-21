@@ -12,6 +12,7 @@ import TripPage from "./pages/TripPage";
 import AppNavigation from "./components/AppNavigation";
 import InstallPWAPrompt from "./components/InstallPWAPrompt";
 import NotificationPermissionGuide from "./components/NotificationPermissionGuide";
+import PushSupportDebugger from "./components/PushSupportDebugger";
 import { useState } from "react";
 import { Toaster } from "react-hot-toast";
 
@@ -127,6 +128,9 @@ function App() {
 
             {/* Guía de permisos de notificación */}
             <NotificationPermissionGuide />
+
+            {/* Debug component solo en desarrollo */}
+            <PushSupportDebugger />
           </div>
         </Router>
       </AuthProvider>

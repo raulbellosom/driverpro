@@ -2,6 +2,10 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
 import App from "./App.jsx";
+import {
+  logPushSupportInfo,
+  cleanupDevelopmentTools,
+} from "./utils/pushSupport";
 
 // Registro inteligente del Service Worker
 const registerSW = async () => {
@@ -42,7 +46,21 @@ const registerSW = async () => {
 
 // Registrar SW después de que la página se cargue
 if (typeof window !== "undefined") {
-  window.addEventListener("load", registerSW);
+  window.addEventListener("load", () => {
+    // Limpiar herramientas de desarrollo en producción
+    cleanupDevelopmentTools();
+
+    // Registrar Service Worker
+    registerSW();
+
+    // Debug info en desarrollo
+    if (!import.meta.env.PROD) {
+      // Pequeño delay para que todo se cargue
+      setTimeout(() => {
+        logPushSupportInfo();
+      }, 1000);
+    }
+  });
 }
 
 createRoot(document.getElementById("root")).render(
