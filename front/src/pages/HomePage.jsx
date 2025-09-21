@@ -61,29 +61,6 @@ const HomePage = () => {
     setShowQuickTripForm(true);
   };
 
-  // Test notification function
-  const testNotification = async () => {
-    try {
-      console.log("📤 Enviando notificación de prueba...");
-      const result = await busAPI.sendNotification({
-        type: "success",
-        title: "🎉 Test de Notificación",
-        body: "Esta es una notificación de prueba desde el frontend - deberías verla aparecer en la esquina superior derecha!",
-      });
-
-      console.log("✅ Notificación de prueba enviada:", result);
-    } catch (error) {
-      console.error("❌ Error en test de notificación:", error);
-    }
-  };
-
-  // Nueva función para probar el bus directamente
-  const testBusConnection = async () => {
-    console.log("🧪 Probando conexión directa al bus...");
-    const result = await busAPI.testConnection();
-    console.log("🚌 Resultado del test:", result);
-  };
-
   const handleNavigateToTripForm = (tripId) => {
     // Set the trip ID for editing and show the form
     setEditingTripId(tripId);

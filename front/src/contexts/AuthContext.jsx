@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useSessionInfo } from "../lib/queries";
 import { authAPI, pushAPI } from "../lib/api";
 import { useWebPush } from "../hooks/useWebPush";
+import { getPushSupport, ensurePermission, getNotificationPermission, canUseNotifications } from "../utils/pushSupport";
 
 const AuthContext = createContext({});
 
@@ -49,37 +50,34 @@ export const AuthProvider = ({ children }) => {
 
   const autoSubscribePushNotifications = async () => {
     // Solo intentar si el navegador soporta push y estamos en HTTPS
-    if (
-      "serviceWorker" in navigator &&
-      "PushManager" in window &&
-      "Notification" in window &&
-      window.location.protocol === "https:"
-    ) {
-      try {
-        // Verificar si ya hay una suscripción activa
-        const registration = await navigator.serviceWorker.ready;
-        const existingSubscription =
-          await registration.pushManager.getSubscription();
+    if (!canUseNotifications() || window.location.protocol !== "https:") {
+      const support = getPushSupport();
+      if (support.isIOS && !support.isStandalone) {
+        console.log("⚠️ iOS navegador detectado. Las notificaciones push solo funcionan cuando la app está instalada como PWA.");
+      }
+      return;
+    }
 
-        if (existingSubscription) {
-          console.log("Ya existe una suscripción de push activa");
-          return;
-        }
+    try {
+      // Verificar si ya hay una suscripción activa
+      const registration = await navigator.serviceWorker.ready;
+      const existingSubscription =
+        await registration.pushManager.getSubscription();
 
-        // Solo proceder si los permisos están concedidos y Notification está disponible
-        if (!("Notification" in window)) {
-          console.log("API de notificaciones no disponible");
-          return;
-        }
+      if (existingSubscription) {
+        console.log("Ya existe una suscripción de push activa");
+        return;
+      }
 
-        let permission = Notification.permission;
+      let permission = getNotificationPermission();
 
-        if (permission === "default") {
-          // Solicitar permisos de manera silenciosa
-          permission = await Notification.requestPermission();
-        }
+      if (permission === "default") {
+        // Solicitar permisos de manera silenciosa
+        const result = await ensurePermission();
+        permission = result.perm || 'default';
+      }
 
-        if (permission === "granted") {
+      if (permission === "granted") {
           console.log("Iniciando auto-suscripción a notificaciones push...");
 
           // Obtener la clave pública VAPID

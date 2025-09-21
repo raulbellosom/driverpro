@@ -1,5 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
 import { pushAPI } from "../lib/api";
+import {
+  getPushSupport,
+  ensurePermission,
+  getNotificationPermission,
+  canUseNotifications,
+} from "../utils/pushSupport";
 
 /**
  * Hook para manejar notificaciones Web Push
@@ -15,19 +21,11 @@ export const useWebPush = () => {
   // Verificar soporte del navegador
   useEffect(() => {
     const checkSupport = () => {
-      const supported =
-        "serviceWorker" in navigator &&
-        "PushManager" in window &&
-        "Notification" in window;
+      const support = getPushSupport();
+      const canUse = canUseNotifications();
 
-      setIsSupported(supported);
-
-      // Solo verificar permission si Notification está disponible
-      if ("Notification" in window) {
-        setPermission(Notification.permission);
-      } else {
-        setPermission("denied");
-      }
+      setIsSupported(canUse);
+      setPermission(getNotificationPermission());
     };
 
     checkSupport();
@@ -71,20 +69,24 @@ export const useWebPush = () => {
   }, []);
 
   const requestPermission = useCallback(async () => {
-    if (!isSupported || !("Notification" in window)) {
+    if (!canUseNotifications()) {
       throw new Error(
         "Las notificaciones push no están soportadas en este navegador"
       );
     }
 
-    const permission = await Notification.requestPermission();
-    setPermission(permission);
+    const result = await ensurePermission();
+    setPermission(result.perm || "default");
 
-    if (permission !== "granted") {
-      throw new Error("Permiso de notificaciones denegado");
+    if (!result.ok) {
+      throw new Error(
+        result.reason === "no-notification-api"
+          ? "Las notificaciones no están disponibles en este contexto"
+          : "Permiso de notificaciones denegado"
+      );
     }
 
-    return permission;
+    return result.perm;
   }, [isSupported]);
 
   const subscribe = useCallback(
@@ -219,7 +221,7 @@ export const useWebPush = () => {
         }
 
         // También mostrar notificación local si está permitido
-        if (permission === "granted" && "Notification" in window) {
+        if (permission === "granted" && typeof Notification !== "undefined") {
           new Notification("Driver Pro - Prueba Local", {
             body: "Esta es una notificación de prueba local adicional",
             icon: "/logo.png",
