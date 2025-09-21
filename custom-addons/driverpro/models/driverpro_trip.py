@@ -236,9 +236,15 @@ class DriverproTrip(models.Model):
     )
     
     scheduled_notification_sent = fields.Boolean(
-        string='Notificación Enviada',
+        string='Notificación 15min Enviada',
         default=False,
-        help="Indica si ya se envió la notificación de recordatorio"
+        help="Indica si ya se envió la notificación de recordatorio de 15 minutos"
+    )
+    
+    scheduled_notification_30_sent = fields.Boolean(
+        string='Notificación 30min Enviada',
+        default=False,
+        help="Indica si ya se envió la notificación de recordatorio de 30 minutos"
     )
     
     # Información de tiempos
@@ -1128,22 +1134,39 @@ class DriverproTrip(models.Model):
     @api.model
     def send_scheduled_notifications(self):
         """Método para enviar notificaciones de viajes programados (ejecutado por cron)"""
-        # Buscar viajes programados que necesitan notificación
-        notification_time = fields.Datetime.now() + timedelta(minutes=15)
+        total_notifications = 0
         
-        trips_to_notify = self.search([
+        # Notificaciones de 30 minutos
+        notification_time_30 = fields.Datetime.now() + timedelta(minutes=30)
+        trips_30_min = self.search([
             ('is_scheduled', '=', True),
-            ('scheduled_datetime', '<=', notification_time),
-            ('scheduled_datetime', '>=', fields.Datetime.now()),
+            ('scheduled_datetime', '<=', notification_time_30),
+            ('scheduled_datetime', '>=', fields.Datetime.now() + timedelta(minutes=25)),
+            ('scheduled_notification_30_sent', '=', False),
+            ('state', '=', 'draft')
+        ])
+        
+        for trip in trips_30_min:
+            trip._send_driver_notification(30)
+            trip.scheduled_notification_30_sent = True
+            total_notifications += 1
+        
+        # Notificaciones de 15 minutos
+        notification_time_15 = fields.Datetime.now() + timedelta(minutes=15)
+        trips_15_min = self.search([
+            ('is_scheduled', '=', True),
+            ('scheduled_datetime', '<=', notification_time_15),
+            ('scheduled_datetime', '>=', fields.Datetime.now() + timedelta(minutes=10)),
             ('scheduled_notification_sent', '=', False),
             ('state', '=', 'draft')
         ])
         
-        for trip in trips_to_notify:
-            trip._send_driver_notification()
+        for trip in trips_15_min:
+            trip._send_driver_notification(15)
             trip.scheduled_notification_sent = True
+            total_notifications += 1
         
-        return len(trips_to_notify)
+        return total_notifications
 
     def _format_time_remaining(self, minutes):
         """Convierte minutos a formato legible (días, horas, minutos)"""
@@ -1164,7 +1187,7 @@ class DriverproTrip(models.Model):
         
         return " y ".join(parts)
 
-    def _send_driver_notification(self):
+    def _send_driver_notification(self, minutes_ahead=None):
         """Envía notificación al chofer sobre viaje próximo"""
         self.ensure_one()
         
@@ -1174,21 +1197,28 @@ class DriverproTrip(models.Model):
         # Convertir fecha programada a zona horaria del chofer
         scheduled_local = self._convert_to_user_timezone(self.scheduled_datetime)
         
-        time_diff = self.scheduled_datetime - fields.Datetime.now()
-        minutes_left = int(time_diff.total_seconds() / 60)
-        time_formatted = self._format_time_remaining(minutes_left)
+        if minutes_ahead:
+            # Usar los minutos específicos pasados como parámetro
+            time_formatted = f"{minutes_ahead} minutos"
+            notification_title = f'Viaje programado en {minutes_ahead} minutos'
+        else:
+            # Calcular tiempo restante dinámicamente
+            time_diff = self.scheduled_datetime - fields.Datetime.now()
+            minutes_left = int(time_diff.total_seconds() / 60)
+            time_formatted = self._format_time_remaining(minutes_left)
+            notification_title = f'Viaje programado en {time_formatted}'
         
         try:
             # Enviar notificación al bus para notificaciones inmediatas
             bus_message = {
                 'type': 'scheduled_trip_reminder',
-                'title': f'Viaje programado en {time_formatted}',
+                'title': notification_title,
                 'body': f'Viaje de {self.origin} a {self.destination}',
                 'trip_id': self.id,
                 'trip_name': self.name,
                 'user_id': self.driver_id.id,
                 'scheduled_datetime': self.scheduled_datetime.isoformat(),
-                'minutes_left': minutes_left,
+                'minutes_left': minutes_ahead or int((self.scheduled_datetime - fields.Datetime.now()).total_seconds() / 60),
                 'timestamp': fields.Datetime.now().isoformat()
             }
             
@@ -1227,6 +1257,7 @@ class DriverproTrip(models.Model):
         if not self.is_scheduled:
             self.scheduled_datetime = False
             self.scheduled_notification_sent = False
+            self.scheduled_notification_30_sent = False
 
     @api.onchange('payment_in_usd')
     def _onchange_payment_in_usd(self):

@@ -7,9 +7,9 @@ import { cleanupOutdatedCaches, precacheAndRoute } from "workbox-precaching";
 cleanupOutdatedCaches();
 precacheAndRoute(self.__WB_MANIFEST);
 
-// Configuración específica para iOS
-const isIOSSafari =
-  /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+// Configuración específica para iOS (usando self.navigator en SW)
+const ua = (self.navigator && self.navigator.userAgent) || "";
+const isIOSSafari = /iPad|iPhone|iPod/.test(ua);
 
 // Manejar notificaciones push
 self.addEventListener("push", (event) => {

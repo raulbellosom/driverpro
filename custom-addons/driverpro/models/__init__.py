@@ -5,4 +5,5 @@ from . import driverpro_trip
 from . import driverpro_empty_trip
 from . import driverpro_installer
 from . import driverpro_push_subscription
+from . import fleet_vehicle
 # from . import driverpro_assignment  # Deshabilitado - se usa Fleet directamente

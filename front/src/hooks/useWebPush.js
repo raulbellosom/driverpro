@@ -196,22 +196,43 @@ export const useWebPush = () => {
     }
   }, [isSupported]);
 
-  const testNotification = useCallback(async () => {
-    if (!isSubscribed) {
-      throw new Error("No hay suscripción activa");
-    }
+  const testNotification = useCallback(
+    async (type = "test") => {
+      if (!isSubscribed) {
+        throw new Error("No hay suscripción activa");
+      }
 
-    // Enviar notificación de prueba local
-    if (permission === "granted") {
-      new Notification("Driver Pro - Prueba", {
-        body: "Esta es una notificación de prueba local",
-        icon: "/logo.png",
-        badge: "/favicon-96x96.png",
-      });
-    }
+      try {
+        // Enviar notificación de prueba desde el servidor
+        const response = await pushAPI.test(type);
 
-    return { success: true, message: "Notificación de prueba enviada" };
-  }, [isSubscribed, permission]);
+        if (!response.success) {
+          throw new Error(
+            response.error || "Error en notificación del servidor"
+          );
+        }
+
+        // También mostrar notificación local si está permitido
+        if (permission === "granted") {
+          new Notification("Driver Pro - Prueba Local", {
+            body: "Esta es una notificación de prueba local adicional",
+            icon: "/logo.png",
+            badge: "/favicon-96x96.png",
+          });
+        }
+
+        return {
+          success: true,
+          message: `Notificación de prueba enviada: ${type}`,
+          serverResponse: response,
+        };
+      } catch (error) {
+        console.error("Error in test notification:", error);
+        throw error;
+      }
+    },
+    [isSubscribed, permission]
+  );
 
   return {
     // Estado

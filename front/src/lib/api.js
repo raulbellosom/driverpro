@@ -560,6 +560,20 @@ export const pushAPI = {
       throw error;
     }
   },
+
+  test: async (type = "test") => {
+    try {
+      const response = await rpc("/api/push/test", { type });
+      return response.data;
+    } catch (error) {
+      if (error.response?.status === 405 || error.response?.status === 404) {
+        console.log("Intentando ruta alternativa para push test...");
+        const response = await rpc("/web/driverpro/push/test", { type });
+        return response.data;
+      }
+      throw error;
+    }
+  },
 };
 
 export default api;
