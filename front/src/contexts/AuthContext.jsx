@@ -66,7 +66,12 @@ export const AuthProvider = ({ children }) => {
           return;
         }
 
-        // Solo proceder si los permisos están concedidos
+        // Solo proceder si los permisos están concedidos y Notification está disponible
+        if (!("Notification" in window)) {
+          console.log("API de notificaciones no disponible");
+          return;
+        }
+
         let permission = Notification.permission;
 
         if (permission === "default") {

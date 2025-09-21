@@ -21,7 +21,13 @@ export const useWebPush = () => {
         "Notification" in window;
 
       setIsSupported(supported);
-      setPermission(Notification.permission);
+
+      // Solo verificar permission si Notification está disponible
+      if ("Notification" in window) {
+        setPermission(Notification.permission);
+      } else {
+        setPermission("denied");
+      }
     };
 
     checkSupport();
@@ -65,7 +71,7 @@ export const useWebPush = () => {
   }, []);
 
   const requestPermission = useCallback(async () => {
-    if (!isSupported) {
+    if (!isSupported || !("Notification" in window)) {
       throw new Error(
         "Las notificaciones push no están soportadas en este navegador"
       );
@@ -213,7 +219,7 @@ export const useWebPush = () => {
         }
 
         // También mostrar notificación local si está permitido
-        if (permission === "granted") {
+        if (permission === "granted" && "Notification" in window) {
           new Notification("Driver Pro - Prueba Local", {
             body: "Esta es una notificación de prueba local adicional",
             icon: "/logo.png",

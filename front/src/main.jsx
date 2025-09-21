@@ -5,35 +5,38 @@ import App from "./App.jsx";
 
 // Registro inteligente del Service Worker
 const registerSW = async () => {
-  if ("serviceWorker" in navigator) {
-    try {
-      // Solo registrar en producción o si estamos en PWA mode
-      const isPWA =
-        window.matchMedia("(display-mode: standalone)").matches ||
-        window.navigator.standalone ||
-        document.referrer.includes("android-app://");
+  // Verificar que estamos en un entorno seguro
+  if (typeof window === "undefined" || !("serviceWorker" in navigator)) {
+    return;
+  }
 
-      const isProduction = import.meta.env.PROD;
+  try {
+    // Solo registrar en producción o si estamos en PWA mode
+    const isPWA =
+      window.matchMedia("(display-mode: standalone)").matches ||
+      window.navigator.standalone ||
+      document.referrer.includes("android-app://");
 
-      // Registrar SW solo en producción o cuando ya estamos en modo PWA
-      if (isProduction || isPWA) {
-        const registration = await navigator.serviceWorker.register("/sw.js", {
-          scope: "/",
-          updateViaCache: "none",
-        });
+    const isProduction = import.meta.env.PROD;
 
-        console.log("SW registrado exitosamente:", registration);
+    // Registrar SW solo en producción o cuando ya estamos en modo PWA
+    if (isProduction || isPWA) {
+      const registration = await navigator.serviceWorker.register("/sw.js", {
+        scope: "/",
+        updateViaCache: "none",
+      });
 
-        // Manejar actualizaciones
-        registration.addEventListener("updatefound", () => {
-          console.log("Nueva versión del SW disponible");
-        });
-      } else {
-        console.log("SW no registrado - modo desarrollo sin PWA");
-      }
-    } catch (error) {
-      console.warn("Error registrando SW:", error);
+      console.log("SW registrado exitosamente:", registration);
+
+      // Manejar actualizaciones
+      registration.addEventListener("updatefound", () => {
+        console.log("Nueva versión del SW disponible");
+      });
+    } else {
+      console.log("SW no registrado - modo desarrollo sin PWA");
     }
+  } catch (error) {
+    console.warn("Error registrando SW:", error);
   }
 };
 
