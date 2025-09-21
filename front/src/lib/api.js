@@ -23,8 +23,25 @@ api.interceptors.response.use(
 );
 
 // Helper para JSON-RPC (Odoo)
-const rpc = (path, params = {}) =>
-  api.post(path, { jsonrpc: "2.0", method: "call", params });
+const rpc = async (path, params = {}) => {
+  const res = await fetch(path, {
+    method: "POST",
+    credentials: "include", // cookie de sesión Odoo
+    headers: {
+      "Content-Type": "application/json", // <-- IMPORTANTE
+      Accept: "application/json", // <-- útil en Safari
+      "X-Requested-With": "XMLHttpRequest",
+    },
+    body: JSON.stringify({ jsonrpc: "2.0", params: params || {} }), // JAMÁS undefined
+  });
+
+  // si Odoo devolviera HTML de error, lo verás aquí
+  if (!res.ok) {
+    const txt = await res.text();
+    throw new Error(`RPC ${path} ${res.status}: ${txt}`);
+  }
+  return res.json();
+};
 
 /**
  * Auth/session
