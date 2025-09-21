@@ -3,7 +3,12 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useSessionInfo } from "../lib/queries";
 import { authAPI, pushAPI } from "../lib/api";
 import { useWebPush } from "../hooks/useWebPush";
-import { getPushSupport, ensurePermission, getNotificationPermission, canUseNotifications } from "../utils/pushSupport";
+import {
+  getPushSupport,
+  ensurePermission,
+  getNotificationPermission,
+  canUseNotifications,
+} from "../utils/pushSupport";
 
 const AuthContext = createContext({});
 
@@ -53,7 +58,9 @@ export const AuthProvider = ({ children }) => {
     if (!canUseNotifications() || window.location.protocol !== "https:") {
       const support = getPushSupport();
       if (support.isIOS && !support.isStandalone) {
-        console.log("⚠️ iOS navegador detectado. Las notificaciones push solo funcionan cuando la app está instalada como PWA.");
+        console.log(
+          "⚠️ iOS navegador detectado. Las notificaciones push solo funcionan cuando la app está instalada como PWA."
+        );
       }
       return;
     }
@@ -74,59 +81,58 @@ export const AuthProvider = ({ children }) => {
       if (permission === "default") {
         // Solicitar permisos de manera silenciosa
         const result = await ensurePermission();
-        permission = result.perm || 'default';
+        permission = result.perm || "default";
       }
 
       if (permission === "granted") {
-          console.log("Iniciando auto-suscripción a notificaciones push...");
+        console.log("Iniciando auto-suscripción a notificaciones push...");
 
-          // Obtener la clave pública VAPID
-          const vapidPublicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY;
-          if (!vapidPublicKey) {
-            console.warn("VAPID public key no configurada");
-            return;
-          }
-
-          // Crear la suscripción
-          const urlBase64ToUint8Array = (base64String) => {
-            const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
-            const base64 = (base64String + padding)
-              .replace(/-/g, "+")
-              .replace(/_/g, "/");
-
-            const rawData = window.atob(base64);
-            const outputArray = new Uint8Array(rawData.length);
-
-            for (let i = 0; i < rawData.length; ++i) {
-              outputArray[i] = rawData.charCodeAt(i);
-            }
-            return outputArray;
-          };
-
-          const pushSubscription = await registration.pushManager.subscribe({
-            userVisibleOnly: true,
-            applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
-          });
-
-          // Enviar suscripción al servidor
-          const response = await pushAPI.subscribe({
-            subscription: pushSubscription.toJSON(),
-            app: "driver",
-          });
-
-          if (response.success) {
-            console.log("✅ Auto-suscripción a push notifications exitosa");
-            setPushAutoSubscribed(true);
-            sessionStorage.setItem("push_auto_subscribed", "true");
-          } else {
-            console.warn("⚠️ Error en auto-suscripción:", response.error);
-          }
-        } else if (permission === "denied") {
-          console.info("ℹ️ Permisos de notificación denegados por el usuario");
+        // Obtener la clave pública VAPID
+        const vapidPublicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY;
+        if (!vapidPublicKey) {
+          console.warn("VAPID public key no configurada");
+          return;
         }
-      } catch (error) {
-        console.warn("Error en auto-suscripción push:", error);
+
+        // Crear la suscripción
+        const urlBase64ToUint8Array = (base64String) => {
+          const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+          const base64 = (base64String + padding)
+            .replace(/-/g, "+")
+            .replace(/_/g, "/");
+
+          const rawData = window.atob(base64);
+          const outputArray = new Uint8Array(rawData.length);
+
+          for (let i = 0; i < rawData.length; ++i) {
+            outputArray[i] = rawData.charCodeAt(i);
+          }
+          return outputArray;
+        };
+
+        const pushSubscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
+        });
+
+        // Enviar suscripción al servidor
+        const response = await pushAPI.subscribe({
+          subscription: pushSubscription.toJSON(),
+          app: "driver",
+        });
+
+        if (response.success) {
+          console.log("✅ Auto-suscripción a push notifications exitosa");
+          setPushAutoSubscribed(true);
+          sessionStorage.setItem("push_auto_subscribed", "true");
+        } else {
+          console.warn("⚠️ Error en auto-suscripción:", response.error);
+        }
+      } else if (permission === "denied") {
+        console.info("ℹ️ Permisos de notificación denegados por el usuario");
       }
+    } catch (error) {
+      console.warn("Error en auto-suscripción push:", error);
     }
   };
 
